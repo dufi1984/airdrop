@@ -6,14 +6,12 @@ import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
 import ServerConfigModal from './components/ServerConfigModal';
 
-import { socketService } from './services/socketService';
-import { webRtcService } from './services/webRtcService';
-import { Sparkles, Heart } from 'lucide-react';
+import { peerNetworkService } from './services/peerNetworkService';
+import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
   const [lang, setLang] = useState('hu');
-  const [myId, setMyId] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [peerList, setPeerList] = useState([]);
   
@@ -26,59 +24,31 @@ export default function App() {
 
   const t = translations[lang];
 
-  // Initialize WebRTC callbacks
+  // Initialize instant PeerJS cloud network
   useEffect(() => {
-    webRtcService.setCallbacks(
-      (peerId, state) => console.log(`Peer state [${peerId}]:`, state),
+    peerNetworkService.init(
+      (status) => setIsConnected(status),
+      (updatedDevices) => setPeerList(updatedDevices),
       (progressData) => setTransferState(progressData),
       (receivedFileData) => {
         setReceivedFiles((prev) => [receivedFileData, ...prev]);
         setTransferState(null);
       }
     );
-  }, []);
-
-  // Initialize auto-discovery socket network
-  useEffect(() => {
-    socketService.on('onConnect', (socketId) => {
-      setIsConnected(true);
-      setMyId(socketId);
-    });
-
-    socketService.on('onDisconnect', () => {
-      setIsConnected(false);
-      setMyId(null);
-    });
-
-    socketService.on('onOnlineDevicesUpdated', (updatedList) => {
-      setPeerList(updatedList);
-      updatedList.forEach((peer) => {
-        if (peer.id !== socketService.myId) {
-          webRtcService.createPeer(peer.id, true);
-        }
-      });
-    });
-
-    socketService.on('onSignal', (data) => {
-      webRtcService.handleSignal(data.from, data.signal);
-    });
-
-    socketService.connect();
 
     return () => {
-      webRtcService.closeAll();
-      socketService.disconnect();
+      peerNetworkService.destroy();
     };
   }, []);
 
-  // Send files to specific target peer (Option 1)
+  // Send files to specific target peer
   const handleSendToPeer = async (targetPeerId) => {
     if (filesToSend.length === 0) {
       setAlertMsg(t.selectFilesWarning);
       setTimeout(() => setAlertMsg(null), 3000);
       return;
     }
-    await webRtcService.sendFilesToPeer(targetPeerId, filesToSend);
+    await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
     setFilesToSend([]);
     setTransferState(null);
   };
@@ -90,8 +60,7 @@ export default function App() {
       setTimeout(() => setAlertMsg(null), 3000);
       return;
     }
-    const otherIds = peerList.filter((p) => p.id !== myId).map((p) => p.id);
-    await webRtcService.sendFilesToAll(otherIds, filesToSend);
+    await peerNetworkService.sendFilesToAll(filesToSend);
     setFilesToSend([]);
     setTransferState(null);
   };
@@ -109,22 +78,8 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-8 sm:px-6 flex flex-col gap-8">
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 flex flex-col gap-6">
         
-        {/* Banner */}
-        <div className="w-full text-center flex flex-col items-center gap-2">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 text-xs font-semibold border border-indigo-500/20">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Közvetlen P2P Fájlküldés Eszközök Között</span>
-          </div>
-          <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white">
-            Gyors Fájlmegosztás Böngészőből
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md">
-            1. Válaszd ki a fájlokat &bull; 2. Koppints az egyik Online Eszközre a küldéshez!
-          </p>
-        </div>
-
         {/* Warning Toast */}
         {alertMsg && (
           <div className="w-full p-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold text-center animate-bounce">
@@ -137,7 +92,7 @@ export default function App() {
           <TransferProgress lang={lang} transferState={transferState} />
         )}
 
-        {/* 1. File Selector Component (First!) */}
+        {/* 1. File Selector Component (Top) */}
         <FilePicker
           lang={lang}
           files={filesToSend}
@@ -146,10 +101,10 @@ export default function App() {
           isPeerConnected={peerList.length > 1}
         />
 
-        {/* 2. Online Devices Vertical List (Second - Tap to Send!) */}
+        {/* 2. Online Devices Vertical List (Underneath - Tap to Send!) */}
         <OnlineDevices
           lang={lang}
-          myId={myId}
+          myId={peerNetworkService.myId}
           peerList={peerList}
           hasFilesSelected={filesToSend.length > 0}
           onSendToPeer={handleSendToPeer}
