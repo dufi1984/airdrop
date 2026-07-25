@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, Image, Film, FileText, Trash2, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, Image, Film, FileText, Trash2, Send } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -58,13 +58,13 @@ export default function FilePicker({ lang, files, setFiles, onStartSend, isPeerC
         className="hidden"
       />
 
-      {/* Drag & Drop Dropzone */}
+      {/* Drag & Drop Zone */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full min-h-[180px] rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer group ${
+        className={`w-full min-h-[170px] rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer group ${
           isDragging
             ? 'border-indigo-400 bg-indigo-500/20 scale-[0.99]'
             : 'border-indigo-500/40 bg-slate-900/50 hover:border-indigo-400 hover:bg-slate-900/80'
@@ -123,16 +123,18 @@ export default function FilePicker({ lang, files, setFiles, onStartSend, isPeerC
             ))}
           </div>
 
-          {/* Send Trigger Button (Visible when peer is connected) */}
-          {isPeerConnected && (
-            <button
-              onClick={onStartSend}
-              className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-cyan-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              {t.readyToSend} ({files.length})
-            </button>
-          )}
+          {/* Send Trigger Button (Prominent & Always Visible when files exist!) */}
+          <button
+            onClick={onStartSend}
+            className={`w-full mt-2 py-3.5 px-6 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+              isPeerConnected
+                ? 'bg-gradient-to-r from-indigo-500 via-indigo-600 to-cyan-500 text-white shadow-indigo-500/30 hover:opacity-95'
+                : 'bg-gradient-to-r from-amber-500 via-indigo-600 to-cyan-600 text-white shadow-amber-500/20 hover:opacity-95'
+            }`}
+          >
+            <Send className="w-5 h-5" />
+            <span>{t.sendFilesNow} ({files.length})</span>
+          </button>
         </div>
       )}
 
