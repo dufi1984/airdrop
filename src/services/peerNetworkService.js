@@ -2,15 +2,17 @@ import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB per binary chunk
-const DISCOVERY_PREFIX = 'airdrop-p2p-v1-';
+const MAX_SLOTS = 10;
+const SLOT_PREFIX = 'airdrop-family-slot-v2-';
 
 class PeerNetworkService {
   constructor() {
     this.peer = null;
     this.myId = null;
+    this.mySlotIndex = null;
     this.myDeviceName = detectDeviceName();
 
-    // Map of peerId -> { conn, deviceInfo }
+    // Map of peerId -> connection object
     this.connections = new Map();
     // Map of peerId -> { id, deviceInfo }
     this.onlineDevices = new Map();
@@ -26,6 +28,8 @@ class PeerNetworkService {
     this.receivedChunksMap = new Map();
     this.receivedBytesMap = new Map();
     this.receiveStartTimes = new Map();
+
+    this.probeTimer = null;
   }
 
   init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived) {
@@ -34,96 +38,104 @@ class PeerNetworkService {
     this.onProgress = onProgress;
     this.onFileReceived = onFileReceived;
 
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const fullId = DISCOVERY_PREFIX + randomSuffix;
-    this.myId = fullId;
+    this.tryClaimSlot(1);
+  }
 
-    // Connect to free 24/7 public PeerJS cloud server over WSS
-    this.peer = new Peer(fullId, {
+  tryClaimSlot(slotIndex) {
+    if (slotIndex > MAX_SLOTS) {
+      console.error('All slots full');
+      return;
+    }
+
+    const slotId = `${SLOT_PREFIX}${slotIndex}`;
+
+    const peer = new Peer(slotId, {
       host: '0.peerjs.com',
       port: 443,
       path: '/',
       secure: true,
-      debug: 1,
+      debug: 0,
     });
 
-    this.peer.on('open', (id) => {
-      console.log('⚡ Connected to PeerJS Cloud Network:', id);
+    peer.on('open', (id) => {
+      console.log(`✅ Claimed slot #${slotIndex}:`, id);
+      this.peer = peer;
+      this.myId = id;
+      this.mySlotIndex = slotIndex;
+
       if (this.onStatusChange) this.onStatusChange(true);
-      
-      // Broadcast discovery ping
-      this.startDiscoveryLoop();
+
+      // Listen for incoming connections
+      this.peer.on('connection', (conn) => {
+        this.handleIncomingConnection(conn);
+      });
+
+      // Start probing other slots
+      this.startSlotProbing();
     });
 
-    this.peer.on('connection', (conn) => {
-      this.handleIncomingConnection(conn);
-    });
-
-    this.peer.on('error', (err) => {
-      console.error('PeerJS Network Error:', err);
-      if (this.onStatusChange) this.onStatusChange(false);
-    });
-
-    this.peer.on('disconnected', () => {
-      console.log('🔌 Disconnected from network');
-      if (this.onStatusChange) this.onStatusChange(false);
-      this.peer.reconnect();
-    });
-  }
-
-  startDiscoveryLoop() {
-    // Probe for existing online devices
-    this.broadcastPresence();
-    setInterval(() => {
-      this.broadcastPresence();
-    }, 4000);
-  }
-
-  broadcastPresence() {
-    // Check local storage or active channel list
-    const knownIds = JSON.parse(localStorage.getItem('airdrop_known_peers') || '[]');
-    
-    // Add current session id to known list
-    if (!knownIds.includes(this.myId)) {
-      knownIds.push(this.myId);
-      if (knownIds.length > 20) knownIds.shift();
-      localStorage.setItem('airdrop_known_peers', JSON.stringify(knownIds));
-    }
-
-    // Try connecting to known active peer IDs
-    knownIds.forEach((targetId) => {
-      if (targetId !== this.myId && !this.connections.has(targetId)) {
-        this.connectToPeer(targetId);
+    peer.on('error', (err) => {
+      // If slot ID is already taken by another active device, try next slot index!
+      if (err.type === 'unavailable-id') {
+        peer.destroy();
+        this.tryClaimSlot(slotIndex + 1);
+      } else {
+        console.warn('Peer error:', err);
+        if (this.onStatusChange) this.onStatusChange(false);
       }
     });
 
-    // Notify UI of current device list
+    peer.on('disconnected', () => {
+      if (this.onStatusChange) this.onStatusChange(false);
+      if (this.peer && !this.peer.destroyed) {
+        this.peer.reconnect();
+      }
+    });
+  }
+
+  startSlotProbing() {
+    this.probeOtherSlots();
+    this.probeTimer = setInterval(() => {
+      this.probeOtherSlots();
+    }, 3000);
+  }
+
+  probeOtherSlots() {
+    if (!this.peer || this.peer.destroyed) return;
+
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (i === this.mySlotIndex) continue;
+
+      const targetSlotId = `${SLOT_PREFIX}${i}`;
+      if (!this.connections.has(targetSlotId)) {
+        this.connectToSlot(targetSlotId);
+      }
+    }
+
     this.notifyDevicesUpdate();
   }
 
-  connectToPeer(targetId) {
-    if (this.connections.has(targetId) || targetId === this.myId) return;
-
+  connectToSlot(targetSlotId) {
     try {
-      const conn = this.peer.connect(targetId, {
+      const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName },
         reliable: true
       });
 
       this.setupConnectionEvents(conn);
     } catch (err) {
-      console.log(`Failed to connect to ${targetId}:`, err);
+      // Slot not occupied yet
     }
   }
 
   handleIncomingConnection(conn) {
-    console.log('👤 Incoming connection from:', conn.peer);
+    console.log('👤 Incoming peer connection from:', conn.peer);
     this.setupConnectionEvents(conn);
   }
 
   setupConnectionEvents(conn) {
     conn.on('open', () => {
-      console.log(`✅ P2P Connection OPEN with ${conn.peer}`);
+      console.log(`🤝 P2P Connected with ${conn.peer}`);
       
       const peerDeviceInfo = conn.metadata?.deviceInfo || 'Eszköz';
       this.connections.set(conn.peer, conn);
@@ -146,14 +158,13 @@ class PeerNetworkService {
     });
 
     conn.on('close', () => {
-      console.log(`🔌 P2P Connection closed with ${conn.peer}`);
+      console.log(`🔌 Connection closed with ${conn.peer}`);
       this.connections.delete(conn.peer);
       this.onlineDevices.delete(conn.peer);
       this.notifyDevicesUpdate();
     });
 
-    conn.on('error', (err) => {
-      console.error(`P2P Error [${conn.peer}]:`, err);
+    conn.on('error', () => {
       this.connections.delete(conn.peer);
       this.onlineDevices.delete(conn.peer);
       this.notifyDevicesUpdate();
@@ -332,6 +343,7 @@ class PeerNetworkService {
   }
 
   destroy() {
+    if (this.probeTimer) clearInterval(this.probeTimer);
     if (this.peer) {
       this.peer.destroy();
       this.peer = null;
