@@ -34,7 +34,7 @@ export default function OnlineDevices({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-md shadow-indigo-500/10">
-            <Wifi className="w-5 h-5 animate-pulse" />
+            <Wifi className="w-5 h-5 animate-pulse text-emerald-400" />
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-extrabold text-white">
@@ -97,8 +97,8 @@ export default function OnlineDevices({
               onClick={() => hasFilesSelected && onSendToPeer(peer.id)}
               className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-200 ${
                 hasFilesSelected
-                  ? 'bg-slate-900/80 border-cyan-500/40 hover:bg-indigo-950/60 hover:border-cyan-400 cursor-pointer shadow-lg hover:scale-[1.01] active:scale-[0.99]'
-                  : 'bg-slate-900/50 border-white/5 opacity-85'
+                  ? 'bg-slate-900/90 border-cyan-500/50 hover:bg-indigo-950/70 hover:border-cyan-400 cursor-pointer shadow-lg hover:scale-[1.01] active:scale-[0.99]'
+                  : 'bg-slate-900/50 border-white/5 opacity-90'
               }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
@@ -109,13 +109,14 @@ export default function OnlineDevices({
                   <p className="text-sm font-bold text-white truncate">
                     {peer.deviceInfo}
                   </p>
-                  <p className="text-xs text-slate-400 font-mono">
-                    ID: #{peer.id.substring(0, 6)} &bull; 🟢 Online
+                  <p className="text-xs text-emerald-400 font-mono font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Online &bull; Kapcsolódva</span>
                   </p>
                 </div>
               </div>
 
-              {/* Action Button / Indicator */}
+              {/* Action Button */}
               <button
                 disabled={!hasFilesSelected}
                 onClick={(e) => {
