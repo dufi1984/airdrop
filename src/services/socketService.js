@@ -6,6 +6,7 @@ class SocketService {
     this.socket = null;
     this.serverUrl = localStorage.getItem('airdrop_signaling_url') || 'https://airdrop-signaling.onrender.com';
     this.callbacks = {};
+    this.myId = null;
   }
 
   setServerUrl(url) {
@@ -32,7 +33,13 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
+      this.myId = this.socket.id;
       console.log('⚡ Socket.io connected:', this.socket.id);
+      
+      // Auto-join global discovery network
+      const deviceInfo = detectDeviceName();
+      this.socket.emit('join-network', { deviceInfo });
+
       if (this.callbacks.onConnect) this.callbacks.onConnect(this.socket.id);
     });
 
@@ -41,29 +48,16 @@ class SocketService {
       if (this.callbacks.onDisconnect) this.callbacks.onDisconnect(reason);
     });
 
-    this.socket.on('room-peers', (existingPeers) => {
-      if (this.callbacks.onRoomPeers) this.callbacks.onRoomPeers(existingPeers);
-    });
-
-    this.socket.on('user-connected', (peerData) => {
-      console.log('👤 Peer connected:', peerData);
-      if (this.callbacks.onPeerJoined) this.callbacks.onPeerJoined(peerData);
-    });
-
-    this.socket.on('user-disconnected', (peerId) => {
-      console.log('👋 Peer disconnected:', peerId);
-      if (this.callbacks.onPeerLeft) this.callbacks.onPeerLeft(peerId);
+    this.socket.on('online-devices-updated', (peerList) => {
+      console.log('🌐 Online devices updated:', peerList);
+      if (this.callbacks.onOnlineDevicesUpdated) {
+        this.callbacks.onOnlineDevicesUpdated(peerList);
+      }
     });
 
     this.socket.on('signal', (data) => {
       if (this.callbacks.onSignal) this.callbacks.onSignal(data);
     });
-  }
-
-  joinRoom(roomId) {
-    if (!this.socket) this.connect();
-    const deviceInfo = detectDeviceName();
-    this.socket.emit('join-room', { roomId, deviceInfo });
   }
 
   sendSignal(to, signal) {

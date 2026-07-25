@@ -19,37 +19,25 @@ app.get('/', (req, res) => {
   res.send('⚡ Airdrop P2P Signaling Server is Running!');
 });
 
-// Map of roomId -> Map of socketId -> deviceInfo
-const rooms = new Map();
+// Single global automatic discovery room
+const GLOBAL_ROOM = 'default-airdrop-room';
+const onlinePeers = new Map(); // socketId -> deviceInfo
 
 io.on('connection', (socket) => {
   console.log(`🔌 New client connected: ${socket.id}`);
-  let currentRoom = null;
 
-  socket.on('join-room', ({ roomId, deviceInfo }) => {
-    currentRoom = roomId;
-    socket.join(roomId);
+  socket.on('join-network', ({ deviceInfo }) => {
+    socket.join(GLOBAL_ROOM);
+    onlinePeers.set(socket.id, deviceInfo || 'Eszköz');
 
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, new Map());
-    }
-
-    const roomPeers = rooms.get(roomId);
-    
-    // Send list of existing peers in room to newly connected client
-    const existingPeers = Array.from(roomPeers.entries()).map(([id, info]) => ({
+    // Broadcast updated online devices list to all connected clients
+    const peerList = Array.from(onlinePeers.entries()).map(([id, info]) => ({
       id,
       deviceInfo: info
     }));
-    socket.emit('room-peers', existingPeers);
 
-    // Add new peer
-    const peerData = { id: socket.id, deviceInfo: deviceInfo || 'Eszköz' };
-    roomPeers.set(socket.id, peerData);
-
-    // Notify other peers in room about new user
-    socket.to(roomId).emit('user-connected', peerData);
-    console.log(`👤 Client ${socket.id} joined room ${roomId} (Total: ${roomPeers.size})`);
+    io.to(GLOBAL_ROOM).emit('online-devices-updated', peerList);
+    console.log(`👤 Client ${socket.id} (${deviceInfo}) joined network. Total online: ${onlinePeers.size}`);
   });
 
   socket.on('signal', ({ to, signal }) => {
@@ -61,15 +49,14 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`👋 Client disconnected: ${socket.id}`);
-    if (currentRoom && rooms.has(currentRoom)) {
-      const roomPeers = rooms.get(currentRoom);
-      roomPeers.delete(socket.id);
-      socket.to(currentRoom).emit('user-disconnected', socket.id);
+    onlinePeers.delete(socket.id);
 
-      if (roomPeers.size === 0) {
-        rooms.delete(currentRoom);
-      }
-    }
+    const peerList = Array.from(onlinePeers.entries()).map(([id, info]) => ({
+      id,
+      deviceInfo: info
+    }));
+
+    io.to(GLOBAL_ROOM).emit('online-devices-updated', peerList);
   });
 });
 
