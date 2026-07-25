@@ -14,135 +14,148 @@ const DEFAULT_RTC_CONFIG = {
 
 class WebRtcService {
   constructor() {
-    this.peerConnection = null;
-    this.dataChannel = null;
-    this.peerId = null;
-    this.isInitiator = false;
-
-    // Incoming file reception state
-    this.incomingFileHeader = null;
-    this.receivedChunks = [];
-    this.receivedBytes = 0;
-    this.receiveStartTime = 0;
+    // Map of peerId -> { peerConnection, dataChannel, state }
+    this.peers = new Map();
 
     // Callbacks
-    this.onConnectionChange = null;
+    this.onPeerStateChange = null;
     this.onProgress = null;
     this.onFileReceived = null;
+
+    // Receiver state per sender
+    this.incomingHeaders = new Map();
+    this.receivedChunksMap = new Map();
+    this.receivedBytesMap = new Map();
+    this.receiveStartTimes = new Map();
   }
 
-  init(peerId, isInitiator, onConnectionChange, onProgress, onFileReceived) {
-    this.peerId = peerId;
-    this.isInitiator = isInitiator;
-    this.onConnectionChange = onConnectionChange;
+  setCallbacks(onPeerStateChange, onProgress, onFileReceived) {
+    this.onPeerStateChange = onPeerStateChange;
     this.onProgress = onProgress;
     this.onFileReceived = onFileReceived;
-
-    this.createPeerConnection();
-
-    if (isInitiator) {
-      this.createDataChannel();
-      this.sendOffer();
-    }
   }
 
-  createPeerConnection() {
-    this.peerConnection = new RTCPeerConnection(DEFAULT_RTC_CONFIG);
+  // Create peer connection for a specific peer ID
+  createPeer(peerId, isInitiator) {
+    if (this.peers.has(peerId)) return this.peers.get(peerId);
 
-    this.peerConnection.onicecandidate = (event) => {
+    const pc = new RTCPeerConnection(DEFAULT_RTC_CONFIG);
+    let dc = null;
+
+    const peerObj = {
+      peerId,
+      pc,
+      dc: null,
+      state: 'connecting'
+    };
+
+    pc.onicecandidate = (event) => {
       if (event.candidate) {
-        socketService.sendSignal(this.peerId, { candidate: event.candidate });
+        socketService.sendSignal(peerId, { candidate: event.candidate });
       }
     };
 
-    this.peerConnection.oniceconnectionstatechange = () => {
-      const state = this.peerConnection ? this.peerConnection.iceConnectionState : 'closed';
-      console.log('🧊 ICE State changed:', state);
-      if (this.onConnectionChange) this.onConnectionChange(state);
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      console.log(`🧊 ICE State [${peerId}]:`, state);
+      peerObj.state = state;
+      if (this.onPeerStateChange) this.onPeerStateChange(peerId, state);
     };
 
-    this.peerConnection.ondatachannel = (event) => {
-      console.log('📡 Data channel received from remote peer');
-      this.dataChannel = event.channel;
-      this.setupDataChannelEvents();
+    pc.ondatachannel = (event) => {
+      console.log(`📡 DataChannel received from ${peerId}`);
+      peerObj.dc = event.channel;
+      this.setupDataChannel(peerId, peerObj.dc);
+    };
+
+    if (isInitiator) {
+      dc = pc.createDataChannel('fileTransfer', { ordered: true });
+      peerObj.dc = dc;
+      this.setupDataChannel(peerId, dc);
+      this.sendOffer(peerId, pc);
+    }
+
+    this.peers.set(peerId, peerObj);
+    return peerObj;
+  }
+
+  setupDataChannel(peerId, dc) {
+    if (!dc) return;
+    dc.binaryType = 'arraybuffer';
+
+    dc.onopen = () => {
+      console.log(`✅ DataChannel OPEN with ${peerId}`);
+      if (this.onPeerStateChange) this.onPeerStateChange(peerId, 'connected');
+    };
+
+    dc.onclose = () => {
+      console.log(`🔌 DataChannel closed with ${peerId}`);
+      this.removePeer(peerId);
+      if (this.onPeerStateChange) this.onPeerStateChange(peerId, 'disconnected');
+    };
+
+    dc.onerror = (err) => console.error(`❌ DataChannel error [${peerId}]:`, err);
+
+    dc.onmessage = (event) => {
+      this.handleIncomingMessage(peerId, event.data);
     };
   }
 
-  createDataChannel() {
-    console.log('📡 Creating data channel (Initiator)');
-    this.dataChannel = this.peerConnection.createDataChannel('fileTransfer', {
-      ordered: true
-    });
-    this.setupDataChannelEvents();
+  async sendOffer(peerId, pc) {
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socketService.sendSignal(peerId, { offer });
+    } catch (err) {
+      console.error(`Error sending offer to ${peerId}:`, err);
+    }
   }
 
-  setupDataChannelEvents() {
-    if (!this.dataChannel) return;
+  async handleSignal(fromPeerId, signal) {
+    let peerObj = this.peers.get(fromPeerId);
+    if (!peerObj) {
+      peerObj = this.createPeer(fromPeerId, false);
+    }
 
-    this.dataChannel.binaryType = 'arraybuffer';
-
-    this.dataChannel.onopen = () => {
-      console.log('✅ DataChannel is OPEN!');
-      if (this.onConnectionChange) this.onConnectionChange('connected');
-    };
-
-    this.dataChannel.onclose = () => {
-      console.log('🔌 DataChannel closed');
-      if (this.onConnectionChange) this.onConnectionChange('disconnected');
-    };
-
-    this.dataChannel.onerror = (error) => {
-      console.error('❌ DataChannel error:', error);
-    };
-
-    this.dataChannel.onmessage = (event) => {
-      this.handleIncomingMessage(event.data);
-    };
-  }
-
-  async handleSignal(signal) {
-    if (!this.peerConnection) return;
+    const { pc } = peerObj;
 
     try {
       if (signal.offer) {
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal.offer));
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
-        socketService.sendSignal(this.peerId, { answer });
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socketService.sendSignal(fromPeerId, { answer });
       } else if (signal.answer) {
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal.answer));
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.answer));
       } else if (signal.candidate) {
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
       }
     } catch (err) {
-      console.error('Signal handling error:', err);
+      console.error(`Signal handling error from ${fromPeerId}:`, err);
     }
   }
 
-  async sendOffer() {
-    try {
-      const offer = await this.peerConnection.createOffer();
-      await this.peerConnection.setLocalDescription(offer);
-      socketService.sendSignal(this.peerId, { offer });
-    } catch (err) {
-      console.error('Error creating offer:', err);
-    }
-  }
-
-  // File Transfer Logic (Sender side)
-  async sendFiles(fileList) {
-    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
-      console.error('Data channel is not ready for sending.');
+  // File Transfer Logic
+  async sendFilesToPeer(peerId, fileList) {
+    const peerObj = this.peers.get(peerId);
+    if (!peerObj || !peerObj.dc || peerObj.dc.readyState !== 'open') {
+      console.error(`Data channel not ready for ${peerId}`);
       return;
     }
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      await this.sendFile(file, i + 1, fileList.length);
+      await this.sendFileToDc(peerObj.dc, file, i + 1, fileList.length);
     }
   }
 
-  async sendFile(file, currentIndex, totalFiles) {
+  async sendFilesToAll(targetPeerIds, fileList) {
+    for (const peerId of targetPeerIds) {
+      await this.sendFilesToPeer(peerId, fileList);
+    }
+  }
+
+  async sendFileToDc(dc, file, currentIndex, totalFiles) {
     return new Promise((resolve) => {
       const header = JSON.stringify({
         type: 'header',
@@ -153,7 +166,7 @@ class WebRtcService {
         totalFiles
       });
 
-      this.dataChannel.send(header);
+      dc.send(header);
 
       let offset = 0;
       const startTime = Date.now();
@@ -161,8 +174,7 @@ class WebRtcService {
 
       const sendNextChunk = () => {
         if (offset >= file.size) {
-          // Send completion signal
-          this.dataChannel.send(JSON.stringify({ type: 'end', name: file.name }));
+          dc.send(JSON.stringify({ type: 'end', name: file.name }));
           resolve();
           return;
         }
@@ -172,16 +184,16 @@ class WebRtcService {
       };
 
       reader.onload = (e) => {
-        if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
+        if (!dc || dc.readyState !== 'open') {
           resolve();
           return;
         }
 
-        this.dataChannel.send(e.target.result);
+        dc.send(e.target.result);
         offset += e.target.result.byteLength;
 
         const now = Date.now();
-        const elapsed = (now - startTime) / 1000; // in seconds
+        const elapsed = (now - startTime) / 1000;
         const speed = elapsed > 0 ? offset / elapsed : 0;
         const remainingBytes = file.size - offset;
         const eta = speed > 0 ? remainingBytes / speed : 0;
@@ -200,9 +212,7 @@ class WebRtcService {
           });
         }
 
-        // Backpressure monitoring
-        if (this.dataChannel.bufferedAmount > 8 * 1024 * 1024) {
-          // 8MB threshold
+        if (dc.bufferedAmount > 8 * 1024 * 1024) {
           setTimeout(sendNextChunk, 50);
         } else {
           setTimeout(sendNextChunk, 1);
@@ -213,79 +223,92 @@ class WebRtcService {
     });
   }
 
-  // Incoming Message Handler (Receiver side)
-  handleIncomingMessage(data) {
+  // Incoming Message Handler
+  handleIncomingMessage(peerId, data) {
     if (typeof data === 'string') {
       try {
         const msg = JSON.parse(data);
 
         if (msg.type === 'header') {
-          this.incomingFileHeader = msg;
-          this.receivedChunks = [];
-          this.receivedBytes = 0;
-          this.receiveStartTime = Date.now();
+          this.incomingHeaders.set(peerId, msg);
+          this.receivedChunksMap.set(peerId, []);
+          this.receivedBytesMap.set(peerId, 0);
+          this.receiveStartTimes.set(peerId, Date.now());
         } else if (msg.type === 'end') {
-          // Reassemble Blob
-          const blob = new Blob(this.receivedChunks, { type: this.incomingFileHeader.mimeType });
-          const file = new File([blob], this.incomingFileHeader.name, {
-            type: this.incomingFileHeader.mimeType
-          });
+          const header = this.incomingHeaders.get(peerId);
+          const chunks = this.receivedChunksMap.get(peerId) || [];
 
-          if (this.onFileReceived) {
-            this.onFileReceived({
-              file,
-              blobUrl: URL.createObjectURL(blob),
-              name: this.incomingFileHeader.name,
-              size: this.incomingFileHeader.size,
-              mimeType: this.incomingFileHeader.mimeType
-            });
+          if (header) {
+            const blob = new Blob(chunks, { type: header.mimeType });
+            const file = new File([blob], header.name, { type: header.mimeType });
+
+            if (this.onFileReceived) {
+              this.onFileReceived({
+                file,
+                blobUrl: URL.createObjectURL(blob),
+                name: header.name,
+                size: header.size,
+                mimeType: header.mimeType,
+                fromPeerId: peerId
+              });
+            }
           }
 
-          // Reset incoming state
-          this.incomingFileHeader = null;
-          this.receivedChunks = [];
-          this.receivedBytes = 0;
+          this.incomingHeaders.delete(peerId);
+          this.receivedChunksMap.delete(peerId);
+          this.receivedBytesMap.delete(peerId);
         }
       } catch (err) {
-        console.error('Error parsing JSON text message:', err);
+        console.error('Error parsing JSON:', err);
       }
     } else if (data instanceof ArrayBuffer) {
-      if (!this.incomingFileHeader) return;
+      const header = this.incomingHeaders.get(peerId);
+      if (!header) return;
 
-      this.receivedChunks.push(data);
-      this.receivedBytes += data.byteLength;
+      const chunks = this.receivedChunksMap.get(peerId) || [];
+      chunks.push(data);
+      this.receivedChunksMap.set(peerId, chunks);
 
-      const now = Date.now();
-      const elapsed = (now - this.receiveStartTime) / 1000;
-      const speed = elapsed > 0 ? this.receivedBytes / elapsed : 0;
-      const remainingBytes = this.incomingFileHeader.size - this.receivedBytes;
+      const currentBytes = (this.receivedBytesMap.get(peerId) || 0) + data.byteLength;
+      this.receivedBytesMap.set(peerId, currentBytes);
+
+      const startTime = this.receiveStartTimes.get(peerId) || Date.now();
+      const elapsed = (Date.now() - startTime) / 1000;
+      const speed = elapsed > 0 ? currentBytes / elapsed : 0;
+      const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((this.receivedBytes / this.incomingFileHeader.size) * 100));
+      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
           direction: 'receive',
-          fileName: this.incomingFileHeader.name,
-          fileSize: this.incomingFileHeader.size,
+          fileName: header.name,
+          fileSize: header.size,
           progress,
           speed,
           eta,
-          currentIndex: this.incomingFileHeader.currentIndex,
-          totalFiles: this.incomingFileHeader.totalFiles
+          currentIndex: header.currentIndex,
+          totalFiles: header.totalFiles
         });
       }
     }
   }
 
-  close() {
-    if (this.dataChannel) {
-      this.dataChannel.close();
-      this.dataChannel = null;
+  removePeer(peerId) {
+    const peerObj = this.peers.get(peerId);
+    if (peerObj) {
+      if (peerObj.dc) peerObj.dc.close();
+      if (peerObj.pc) peerObj.pc.close();
+      this.peers.delete(peerId);
     }
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
+  }
+
+  closeAll() {
+    this.peers.forEach((peerObj) => {
+      if (peerObj.dc) peerObj.dc.close();
+      if (peerObj.pc) peerObj.pc.close();
+    });
+    this.peers.clear();
   }
 }
 

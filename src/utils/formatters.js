@@ -26,3 +26,13 @@ export function formatEta(seconds) {
 export function generateRoomId() {
   return Math.random().toString(36).substring(2, 9);
 }
+
+export function detectDeviceName() {
+  const ua = navigator.userAgent;
+  if (/iPad/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/Android/i.test(ua)) return 'Android Telefon';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Windows/i.test(ua)) return 'Windows PC';
+  return 'Eszköz';
+}

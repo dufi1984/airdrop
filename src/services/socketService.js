@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { detectDeviceName } from '../utils/formatters';
 
 class SocketService {
   constructor() {
@@ -40,9 +41,13 @@ class SocketService {
       if (this.callbacks.onDisconnect) this.callbacks.onDisconnect(reason);
     });
 
-    this.socket.on('user-connected', (peerId) => {
-      console.log('👤 Peer connected:', peerId);
-      if (this.callbacks.onPeerJoined) this.callbacks.onPeerJoined(peerId);
+    this.socket.on('room-peers', (existingPeers) => {
+      if (this.callbacks.onRoomPeers) this.callbacks.onRoomPeers(existingPeers);
+    });
+
+    this.socket.on('user-connected', (peerData) => {
+      console.log('👤 Peer connected:', peerData);
+      if (this.callbacks.onPeerJoined) this.callbacks.onPeerJoined(peerData);
     });
 
     this.socket.on('user-disconnected', (peerId) => {
@@ -57,7 +62,8 @@ class SocketService {
 
   joinRoom(roomId) {
     if (!this.socket) this.connect();
-    this.socket.emit('join-room', roomId);
+    const deviceInfo = detectDeviceName();
+    this.socket.emit('join-room', { roomId, deviceInfo });
   }
 
   sendSignal(to, signal) {

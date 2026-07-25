@@ -5,6 +5,7 @@ import QrPairing from './components/QrPairing';
 import QrScannerModal from './components/QrScannerModal';
 import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
+import PeerSelector from './components/PeerSelector';
 import ServerConfigModal from './components/ServerConfigModal';
 
 import { socketService } from './services/socketService';
@@ -18,9 +19,11 @@ export default function App() {
   const [roomId, setRoomId] = useState('');
   const [roomUrl, setRoomUrl] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [peerId, setPeerId] = useState(null);
-  const [rtcState, setRtcState] = useState('disconnected');
   
+  // List of connected peers in room: [{ id, deviceInfo }]
+  const [connectedPeers, setConnectedPeers] = useState([]);
+  const [selectedTargetId, setSelectedTargetId] = useState('all');
+
   const [filesToSend, setFilesToSend] = useState([]);
   const [receivedFiles, setReceivedFiles] = useState([]);
   const [transferState, setTransferState] = useState(null);
@@ -43,6 +46,20 @@ export default function App() {
     return newId;
   }, []);
 
+  // Initialize WebRTC callbacks
+  useEffect(() => {
+    webRtcService.setCallbacks(
+      (peerId, state) => {
+        console.log(`Peer state update [${peerId}]:`, state);
+      },
+      (progressData) => setTransferState(progressData),
+      (receivedFileData) => {
+        setReceivedFiles((prev) => [receivedFileData, ...prev]);
+        setTransferState(null);
+      }
+    );
+  }, []);
+
   // Initialize room & socket connection
   useEffect(() => {
     const id = getOrCreateRoomId();
@@ -55,59 +72,45 @@ export default function App() {
     socketService.on('onConnect', () => setIsConnected(true));
     socketService.on('onDisconnect', () => setIsConnected(false));
 
-    socketService.on('onPeerJoined', (remotePeerId) => {
-      console.log('👤 Connected to remote peer:', remotePeerId);
-      setPeerId(remotePeerId);
+    socketService.on('onRoomPeers', (existingPeers) => {
+      setConnectedPeers(existingPeers);
+      existingPeers.forEach((p) => {
+        webRtcService.createPeer(p.id, true);
+      });
+    });
+
+    socketService.on('onPeerJoined', (peerData) => {
+      console.log('👤 Connected to remote peer:', peerData);
+      setConnectedPeers((prev) => {
+        if (prev.some((p) => p.id === peerData.id)) return prev;
+        return [...prev, peerData];
+      });
       setShowWaitingModal(false);
-      webRtcService.init(
-        remotePeerId,
-        true,
-        (state) => setRtcState(state),
-        (progressData) => setTransferState(progressData),
-        (receivedFileData) => {
-          setReceivedFiles((prev) => [receivedFileData, ...prev]);
-          setTransferState(null);
-        }
-      );
+      webRtcService.createPeer(peerData.id, true);
     });
 
     socketService.on('onSignal', (data) => {
       setShowWaitingModal(false);
-      if (!webRtcService.peerConnection) {
-        setPeerId(data.from || 'remote-peer');
-        webRtcService.init(
-          data.from || 'remote-peer',
-          false,
-          (state) => setRtcState(state),
-          (progressData) => setTransferState(progressData),
-          (receivedFileData) => {
-            setReceivedFiles((prev) => [receivedFileData, ...prev]);
-            setTransferState(null);
-          }
-        );
-      }
-      webRtcService.handleSignal(data.signal);
+      webRtcService.handleSignal(data.from, data.signal);
     });
 
-    socketService.on('onPeerLeft', () => {
-      setPeerId(null);
-      setRtcState('disconnected');
-      webRtcService.close();
+    socketService.on('onPeerLeft', (peerId) => {
+      setConnectedPeers((prev) => prev.filter((p) => p.id !== peerId));
+      webRtcService.removePeer(peerId);
     });
 
     socketService.joinRoom(id);
 
     return () => {
-      webRtcService.close();
+      webRtcService.closeAll();
       socketService.disconnect();
     };
   }, [getOrCreateRoomId]);
 
   // Leave room and generate a fresh new room ID
   const handleNewRoom = () => {
-    webRtcService.close();
-    setPeerId(null);
-    setRtcState('disconnected');
+    webRtcService.closeAll();
+    setConnectedPeers([]);
     setFilesToSend([]);
     setReceivedFiles([]);
     setTransferState(null);
@@ -123,31 +126,26 @@ export default function App() {
     socketService.joinRoom(newId);
   };
 
-  const isPeerConnected = rtcState === 'connected' || rtcState === 'completed';
+  const isPeerConnected = connectedPeers.length > 0;
 
-  // Trigger file sending over WebRTC
+  // Trigger file sending over WebRTC (targeting specific device or all)
   const handleStartSend = async () => {
     if (filesToSend.length === 0) return;
     if (!isPeerConnected) {
-      // Prompt user to scan QR on second device
       setShowWaitingModal(true);
       return;
     }
-    await webRtcService.sendFiles(filesToSend);
+
+    if (selectedTargetId === 'all') {
+      const allIds = connectedPeers.map((p) => p.id);
+      await webRtcService.sendFilesToAll(allIds, filesToSend);
+    } else {
+      await webRtcService.sendFilesToPeer(selectedTargetId, filesToSend);
+    }
+
     setFilesToSend([]);
     setTransferState(null);
   };
-
-  // Auto-trigger send once peer connects if waiting modal is active
-  useEffect(() => {
-    if (isPeerConnected && filesToSend.length > 0 && showWaitingModal) {
-      setShowWaitingModal(false);
-      webRtcService.sendFiles(filesToSend).then(() => {
-        setFilesToSend([]);
-        setTransferState(null);
-      });
-    }
-  }, [isPeerConnected, filesToSend, showWaitingModal]);
 
   // Handle camera QR scanner result
   const handleScanSuccess = (decodedText) => {
@@ -187,9 +185,19 @@ export default function App() {
             Gyors Fájlmegosztás Böngészőből
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md">
-            1. Válaszd ki a fájlokat &bull; 2. Olvasd be a QR-kódot a másik eszközzel (pl. iPad/telefon) &bull; 3. Mentés a Galériába!
+            1. Válaszd ki a fájlokat &bull; 2. Olvasd be a QR-kódot a másik eszközzel (pl. iPad/telefon) &bull; 3. Válassz cél-eszközt & Küldés!
           </p>
         </div>
+
+        {/* Multi-Peer Target Selector (Displayed when 1 or more devices are in room) */}
+        {connectedPeers.length > 0 && (
+          <PeerSelector
+            lang={lang}
+            peers={connectedPeers}
+            selectedTargetId={selectedTargetId}
+            setSelectedTargetId={setSelectedTargetId}
+          />
+        )}
 
         {/* Active Transfer Progress Banner */}
         {transferState && (
@@ -256,7 +264,6 @@ export default function App() {
               {t.waitingToConnectDesc}
             </p>
 
-            {/* Render QR inside modal */}
             <div className="p-2 bg-white rounded-2xl mx-auto border-4 border-indigo-500/30">
               <QrPairing lang={lang} roomUrl={roomUrl} onOpenScanner={() => setShowScanner(true)} />
             </div>
