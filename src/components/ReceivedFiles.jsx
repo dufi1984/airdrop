@@ -1,37 +1,45 @@
 import React from 'react';
-import { Share2, Download, Image, Film, FileText, CheckCircle2, Sparkles } from 'lucide-react';
+import { Share2, Download, Image, Film, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
-export default function ReceivedFiles({ lang, receivedFiles }) {
+export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
   const t = translations[lang];
 
   if (!receivedFiles || receivedFiles.length === 0) return null;
 
-  const handleShareToGallery = async (item) => {
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
+  // Batch Save All to Gallery via Web Share API
+  const handleShareAllToGallery = async () => {
+    const fileList = receivedFiles.map((item) => item.file);
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
-          files: [item.file],
-          title: item.name,
-          text: 'Fájl mentése a galériába az Airdrop P2P segítségével',
+          files: fileList,
+          title: `Airdrop Media (${receivedFiles.length} fájl)`,
+          text: 'Fájlok mentése a galériába az Airdrop P2P alkalmazással',
         });
       } catch (err) {
-        console.log('User cancelled or error during Web Share API:', err);
+        console.log('User cancelled Web Share API:', err);
       }
     } else {
-      // Fallback trigger standard download
-      handleDownload(item);
+      // Fallback batch download
+      handleDownloadAll();
     }
   };
 
-  const handleDownload = (item) => {
-    const a = document.createElement('a');
-    a.href = item.blobUrl;
-    a.download = item.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // Download all files sequentially
+  const handleDownloadAll = () => {
+    receivedFiles.forEach((item, index) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = item.blobUrl;
+        a.download = item.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, index * 250);
+    });
   };
 
   const getMediaPreview = (item) => {
@@ -46,85 +54,92 @@ export default function ReceivedFiles({ lang, receivedFiles }) {
     }
     if (item.mimeType.startsWith('video/')) {
       return (
-        <div className="w-16 h-16 rounded-xl bg-cyan-900/40 border border-cyan-500/30 flex items-center justify-center">
-          <Film className="w-8 h-8 text-cyan-400" />
+        <div className="w-16 h-16 rounded-xl bg-cyan-900/40 border border-cyan-500/30 flex items-center justify-center shrink-0">
+          <Film className="w-7 h-7 text-cyan-400" />
         </div>
       );
     }
     return (
-      <div className="w-16 h-16 rounded-xl bg-amber-900/40 border border-amber-500/30 flex items-center justify-center">
-        <FileText className="w-8 h-8 text-amber-400" />
+      <div className="w-16 h-16 rounded-xl bg-amber-900/40 border border-amber-500/30 flex items-center justify-center shrink-0">
+        <FileText className="w-7 h-7 text-amber-400" />
       </div>
     );
   };
 
   return (
-    <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/30">
+    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/40 shadow-2xl">
       
-      {/* Header */}
+      {/* Header with Reject X button */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-5 h-5" />
           </div>
-          <h3 className="text-base sm:text-lg font-bold text-white">
-            {t.receivedFilesTitle} ({receivedFiles.length})
-          </h3>
+          <div>
+            <h3 className="text-base sm:text-lg font-extrabold text-white">
+              {t.receivedPackageTitle} ({receivedFiles.length} {t.filesSelected})
+            </h3>
+            <p className="text-xs text-emerald-300 font-medium">
+              Sikeresen megérkezett a csomag!
+            </p>
+          </div>
         </div>
+
+        {/* Reject / Dismiss X Button */}
+        <button
+          onClick={onClearReceived}
+          className="p-2 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-white/10 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+          title={t.rejectPackage}
+        >
+          <X className="w-4 h-4" />
+          <span className="hidden sm:inline">{t.rejectPackage}</span>
+        </button>
       </div>
 
-      <p className="text-xs text-slate-300 bg-slate-900/60 p-3 rounded-xl border border-white/5 flex items-center gap-2">
+      <p className="text-xs text-slate-300 bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
         <span>{t.autoShareNotice}</span>
       </p>
 
-      {/* Received Items List */}
-      <div className="flex flex-col gap-3">
+      {/* Main Batch Action Buttons (Save All / Download All) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        
+        {/* Batch Save to Gallery Button */}
+        <button
+          onClick={handleShareAllToGallery}
+          className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/25 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2 transition-all"
+        >
+          <Share2 className="w-4 h-4" />
+          <span>{t.saveAllToGallery} ({receivedFiles.length})</span>
+        </button>
+
+        {/* Download All Button */}
+        <button
+          onClick={handleDownloadAll}
+          className="w-full py-3.5 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs border border-white/10 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+        >
+          <Download className="w-4 h-4 text-indigo-400" />
+          <span>{t.downloadAll}</span>
+        </button>
+
+      </div>
+
+      {/* Received Items Thumbnails Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
         {receivedFiles.map((item, index) => (
           <div
             key={index}
-            className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-900/80 border border-white/10 gap-3"
+            className="flex items-center gap-3 p-3 rounded-2xl bg-slate-900/80 border border-white/5"
           >
-            {/* Preview & Info */}
-            <div className="flex items-center gap-3 min-w-0">
-              {getMediaPreview(item)}
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-semibold text-white truncate">
-                  {item.name}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {formatBytes(item.size)}
-                </p>
-              </div>
+            {getMediaPreview(item)}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-white truncate">
+                {item.name}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {formatBytes(item.size)}
+              </p>
             </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              
-              {/* Web Share / Save to Gallery Button */}
-              {navigator.share && (
-                <button
-                  onClick={() => handleShareToGallery(item)}
-                  className="py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-md hover:opacity-90 flex items-center gap-1.5 transition-all active:scale-95"
-                  title={t.saveToGallery}
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{t.saveToGallery}</span>
-                </button>
-              )}
-
-              {/* Direct Download Button */}
-              <button
-                onClick={() => handleDownload(item)}
-                className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-white/10 flex items-center gap-1.5 transition-all active:scale-95"
-                title={t.downloadFile}
-              >
-                <Download className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="hidden sm:inline">{t.downloadFile}</span>
-              </button>
-
-            </div>
-
           </div>
         ))}
       </div>

@@ -65,13 +65,16 @@ export default function App() {
     setTransferState(null);
   };
 
+  const handleClearReceived = () => {
+    setReceivedFiles([]);
+  };
+
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
       
-      {/* Header Bar */}
+      {/* Header Bar (Clean status badge + Settings gear icon) */}
       <Header
         lang={lang}
-        setLang={setLang}
         isConnected={isConnected}
         onlineCount={peerList.length}
         onOpenSettings={() => setShowSettings(true)}
@@ -97,8 +100,6 @@ export default function App() {
           lang={lang}
           files={filesToSend}
           setFiles={setFilesToSend}
-          onStartSend={() => {}}
-          isPeerConnected={peerList.length > 1}
         />
 
         {/* 2. Online Devices Vertical List (Underneath - Tap to Send!) */}
@@ -111,8 +112,12 @@ export default function App() {
           onSendToAll={handleSendToAll}
         />
 
-        {/* 3. Received Files Section */}
-        <ReceivedFiles lang={lang} receivedFiles={receivedFiles} />
+        {/* 3. Received Grouped Package Section */}
+        <ReceivedFiles
+          lang={lang}
+          receivedFiles={receivedFiles}
+          onClearReceived={handleClearReceived}
+        />
 
       </main>
 
@@ -127,10 +132,11 @@ export default function App() {
         </p>
       </footer>
 
-      {/* Server Config Modal */}
+      {/* Server & Language Settings Modal */}
       {showSettings && (
         <ServerConfigModal
           lang={lang}
+          setLang={setLang}
           onClose={() => setShowSettings(false)}
         />
       )}

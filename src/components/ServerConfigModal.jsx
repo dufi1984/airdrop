@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { X, Server, Save, Check } from 'lucide-react';
+import { X, Server, Save, Check, Globe } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { socketService } from '../services/socketService';
 
-export default function ServerConfigModal({ lang, onClose }) {
+export default function ServerConfigModal({ lang, setLang, onClose }) {
   const t = translations[lang];
   const [url, setUrl] = useState(socketService.getServerUrl());
   const [saved, setSaved] = useState(false);
@@ -36,7 +36,39 @@ export default function ServerConfigModal({ lang, onClose }) {
           </button>
         </div>
 
-        {/* Form */}
+        {/* Language Selection Option */}
+        <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-900/80 border border-white/5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-indigo-400" />
+            <span>{t.switchLang}</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setLang('hu')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                lang === 'hu'
+                  ? 'bg-indigo-600/30 border-indigo-500 text-white shadow-md'
+                  : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
+              🇭🇺 {t.langNameHU}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang('en')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                lang === 'en'
+                  ? 'bg-indigo-600/30 border-indigo-500 text-white shadow-md'
+                  : 'bg-slate-800 border-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
+              🇬🇧 {t.langNameEN}
+            </button>
+          </div>
+        </div>
+
+        {/* Server Config Form */}
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -52,13 +84,6 @@ export default function ServerConfigModal({ lang, onClose }) {
             />
             <p className="text-[11px] text-slate-400 mt-1.5">
               Glitch, Render.com vagy saját szerver WebSocket URL-je.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
-            <p className="font-bold mb-1">ICE / STUN Szerverek:</p>
-            <p className="text-[11px] opacity-80 font-mono">
-              stun.l.google.com:19302 (Google Public)
             </p>
           </div>
 
