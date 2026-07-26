@@ -29,7 +29,7 @@ class PeerNetworkService {
     this.receivedBytesMap = new Map();
     this.receiveStartTimes = new Map();
     this.pendingTransferFiles = new Map();
-    this.activeSendCancellations = new Map(); // peerId -> boolean
+    this.activeSendCancellations = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -217,7 +217,8 @@ class PeerNetworkService {
               fromPeerId,
               senderName: senderInfo ? senderInfo.deviceInfo : 'Online Eszköz',
               totalFiles: msg.totalFiles,
-              fileName: msg.fileName
+              fileName: msg.fileName,
+              fileNames: msg.fileNames || [msg.fileName]
             });
           }
           return;
@@ -334,11 +335,12 @@ class PeerNetworkService {
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Propose transfer to trigger phone call style modal on receiver device
+    // Propose transfer with full list of file names
     conn.send(JSON.stringify({
       type: 'propose_transfer',
       totalFiles: fileList.length,
-      fileName: fileList[0].name
+      fileName: fileList[0].name,
+      fileNames: Array.from(fileList).map((f) => f.name)
     }));
   }
 

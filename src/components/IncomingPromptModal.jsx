@@ -8,7 +8,8 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
 
   if (!incomingInfo) return null;
 
-  const { senderName, totalFiles, fileName } = incomingInfo;
+  const { senderName, totalFiles, fileName, fileNames } = incomingInfo;
+  const listToRender = fileNames && fileNames.length > 0 ? fileNames : [fileName];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg animate-fade-in">
@@ -19,7 +20,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
           <Package className="w-8 h-8 text-indigo-400" />
         </div>
 
-        {/* Title (Without small text underneath) */}
+        {/* Title */}
         <div className="flex flex-col gap-1 shrink-0">
           <span className="text-xs font-extrabold uppercase tracking-widest text-indigo-400">
             Bejövő Átvitel
@@ -59,17 +60,15 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
             </div>
           </div>
 
-          {/* Expanded Content View */}
+          {/* Expanded Content View (Shows 4-5 items cleanly, smoothly scrollable if more) */}
           {isExpanded && (
-            <div className="w-full max-h-36 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300">
-              <div className="p-2.5 rounded-xl bg-slate-800/80 border border-white/5 truncate font-medium">
-                📄 {fileName}
-              </div>
-              {totalFiles > 1 && (
-                <p className="text-[11px] text-slate-400 italic px-1">
-                  ...és további {totalFiles - 1} fájl a csomagban.
-                </p>
-              )}
+            <div className="w-full max-h-48 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300 pr-1">
+              {listToRender.map((name, idx) => (
+                <div key={idx} className="p-2.5 rounded-xl bg-slate-800/80 border border-white/5 truncate font-medium flex items-center gap-2">
+                  <span className="text-indigo-400 font-mono text-[11px]">{idx + 1}.</span>
+                  <span className="truncate">{name}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -89,7 +88,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
           {/* 🟢 ELFOGADÁS (Green Button) */}
           <button
             onClick={onAccept}
-            className="w-full py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/40 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-400/40"
+            className="w-full py-4 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/40 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-400/40"
           >
             <CheckCircle2 className="w-6 h-6 text-white" />
             <span>ELFOGADÁS</span>
