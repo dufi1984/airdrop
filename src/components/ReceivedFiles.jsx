@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Share2, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -7,6 +7,9 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
   const t = translations[lang];
   const containerRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // Detect if user is on mobile (iOS/Android) or Desktop PC
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // Auto-scroll to received files section on new file arrival
   useEffect(() => {
@@ -17,33 +20,35 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
 
   if (!receivedFiles || receivedFiles.length === 0) return null;
 
-  // Batch Save All to Gallery via Web Share API
-  const handleShareAllToGallery = async () => {
+  // Save/Download Handler based on device
+  const handleSaveOrDownloadAll = async () => {
     const fileList = receivedFiles.map((item) => item.file);
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
+    // 1. On Mobile: Use Web Share API to export to Photo Gallery
+    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
           files: fileList,
           title: `Airdrop Media (${receivedFiles.length} fájl)`,
           text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
         });
+        return;
       } catch (err) {
         console.log('User cancelled Web Share API:', err);
       }
-    } else {
-      // Fallback batch download
-      receivedFiles.forEach((item, index) => {
-        setTimeout(() => {
-          const a = document.createElement('a');
-          a.href = item.blobUrl;
-          a.download = item.name;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }, index * 250);
-      });
     }
+
+    // 2. On Desktop PC / Fallback: Direct batch download into Downloads folder
+    receivedFiles.forEach((item, index) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = item.blobUrl;
+        a.download = item.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, index * 250);
+    });
   };
 
   const getMediaPreview = (item) => {
@@ -100,18 +105,27 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
+      {/* Notice Bar */}
       <p className="text-xs text-slate-300 bg-slate-900/80 p-3.5 rounded-2xl border border-white/5 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-        <span>{t.autoShareNotice}</span>
+        <span>
+          {isMobile
+            ? 'Koppints a gombra a kapott fotók/videók 1-kattintásos mentéséhez a mobilod Képgalériájába!'
+            : 'Kattints a gombra az összes fogadott fájl letöltéséhez a géped Letöltések mappájába!'}
+        </span>
       </p>
 
-      {/* Main Single Action Button: Mentés mindet a Galériába */}
+      {/* Main Device-Smart Action Button */}
       <button
-        onClick={handleShareAllToGallery}
+        onClick={handleSaveOrDownloadAll}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-emerald-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-emerald-400/40"
       >
-        <Share2 className="w-5 h-5" />
-        <span>{t.saveAllToGallery} ({receivedFiles.length})</span>
+        {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
+        <span>
+          {isMobile
+            ? `Mentés mindet a Galériába (${receivedFiles.length})`
+            : `Mindet Letöltése a gépre (${receivedFiles.length})`}
+        </span>
       </button>
 
       {/* Collapsible Gallery Toggle Trigger */}
