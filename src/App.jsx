@@ -9,7 +9,7 @@ import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
-import { Heart } from 'lucide-react';
+import { Heart, RotateCw } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
@@ -25,6 +25,7 @@ export default function App() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [incomingPrompt, setIncomingPrompt] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const t = translations[lang];
 
@@ -40,7 +41,6 @@ export default function App() {
       (updatedDevices) => setPeerList(updatedDevices),
       (progressData) => {
         setTransferState(progressData);
-        // Auto-clear sender progress bar when reaching 100%
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
           setTimeout(() => {
             setTransferState(null);
@@ -67,6 +67,23 @@ export default function App() {
       peerNetworkService.destroy();
     };
   }, []);
+
+  // Force cache-busting reload button action for PWA standalone app mode
+  const handleForceAppReload = () => {
+    setIsRefreshing(true);
+    
+    // Clear browser cache storages if supported
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach((name) => caches.delete(name));
+      });
+    }
+
+    // Force hard reload bypassing cache
+    setTimeout(() => {
+      window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
+    }, 300);
+  };
 
   // Accept incoming transfer prompt
   const handleAcceptIncoming = () => {
@@ -144,7 +161,7 @@ export default function App() {
           setFiles={setFilesToSend}
         />
 
-        {/* 2. Online Devices Vertical List (Underneath - Tap to Send!) */}
+        {/* 2. Online Devices Vertical List */}
         <OnlineDevices
           lang={lang}
           myId={peerNetworkService.myId}
@@ -153,6 +170,18 @@ export default function App() {
           onSendToPeer={handleSendToPeer}
           onSendToAll={handleSendToAll}
         />
+
+        {/* Explicit Force App Refresh Button (Placed right under Online Devices) */}
+        <div className="w-full flex justify-center -mt-2">
+          <button
+            onClick={handleForceAppReload}
+            className="py-2.5 px-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
+            title="Legújabb verzió betöltése"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>App Frissítése (Legújabb verzió letöltése)</span>
+          </button>
+        </div>
 
         {/* 3. Received Grouped Package Section */}
         <ReceivedFiles
