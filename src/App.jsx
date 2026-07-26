@@ -44,7 +44,6 @@ export default function App() {
         setTransferState(null);
       },
       (promptInfo) => {
-        // Phone call style incoming transfer prompt
         setIncomingPrompt(promptInfo);
       },
       (rejectedPeerId) => {
@@ -155,9 +154,9 @@ export default function App() {
 
       </main>
 
-      {/* Footer */}
+      {/* New Requested Footer: Airdrop by Dufi ❤️ */}
       <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
-        <span>Airdrop &bull; Ingyenes nyílt forráskódú szoftver</span>
+        <span>Airdrop by Dufi</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
 
