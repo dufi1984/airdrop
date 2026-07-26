@@ -1,10 +1,18 @@
-import React from 'react';
-import { Share2, Download, Image, Film, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
 export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
   const t = translations[lang];
+  const containerRef = useRef(null);
+
+  // Auto-scroll to received files section on new file arrival
+  useEffect(() => {
+    if (receivedFiles && receivedFiles.length > 0 && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [receivedFiles]);
 
   if (!receivedFiles || receivedFiles.length === 0) return null;
 
@@ -67,7 +75,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
   };
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/40 shadow-2xl">
+    <div ref={containerRef} className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/40 shadow-2xl animate-fade-in">
       
       {/* Header with Reject X button */}
       <div className="flex items-center justify-between">

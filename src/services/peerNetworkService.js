@@ -1,9 +1,9 @@
 import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 
-const CHUNK_SIZE = 32 * 1024; // 32KB chunks for high mobile/desktop WebRTC stability
+const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 6;
-const SLOT_PREFIX = 'airdrop-p2p-v3-';
+const SLOT_PREFIX = 'airdrop-p2p-v4-';
 
 class PeerNetworkService {
   constructor() {
@@ -23,8 +23,11 @@ class PeerNetworkService {
     this.onProgress = null;
     this.onFileReceived = null;
 
-    // Incoming file assembly states per sender
-    this.incomingState = new Map();
+    // Receiver state per sender
+    this.incomingHeaders = new Map();
+    this.receivedChunksMap = new Map();
+    this.receivedBytesMap = new Map();
+    this.receiveStartTimes = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -55,19 +58,17 @@ class PeerNetworkService {
       });
 
       peer.on('open', (id) => {
-        console.log(`✅ Claimed slot #${slotIndex}:`, id);
+        console.log(`✅ Connected slot #${slotIndex}:`, id);
         this.peer = peer;
         this.myId = id;
         this.mySlotIndex = slotIndex;
 
         if (this.onStatusChange) this.onStatusChange(true);
 
-        // Listen for incoming P2P connections
         this.peer.on('connection', (conn) => {
           this.handleIncomingConnection(conn);
         });
 
-        // Probe other slots for peers (one-time probe loop without rate limiting)
         this.startProbing();
       });
 
@@ -76,7 +77,7 @@ class PeerNetworkService {
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
         } else {
-          console.warn('Peer network warning:', err.type);
+          console.warn('Peer error:', err.type);
         }
       });
 
@@ -95,10 +96,9 @@ class PeerNetworkService {
 
   startProbing() {
     this.probeOtherSlots();
-    // Low frequency probe (every 6 seconds) to prevent rate limits
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 6000);
+    }, 5000);
   }
 
   probeOtherSlots() {
@@ -108,7 +108,6 @@ class PeerNetworkService {
       if (i === this.mySlotIndex) continue;
 
       const targetSlotId = `${SLOT_PREFIX}${i}`;
-      // Only connect if not connected already
       if (!this.connections.has(targetSlotId)) {
         this.connectToSlot(targetSlotId);
       }
@@ -127,19 +126,16 @@ class PeerNetworkService {
       });
 
       this.setupConnectionEvents(conn);
-    } catch (err) {
-      // Slot not ready yet
-    }
+    } catch (err) {}
   }
 
   handleIncomingConnection(conn) {
-    console.log('👤 Incoming peer connection from:', conn.peer);
     this.setupConnectionEvents(conn);
   }
 
   setupConnectionEvents(conn) {
     conn.on('open', () => {
-      console.log(`🤝 P2P Connected with ${conn.peer}`);
+      console.log(`🤝 Connected with ${conn.peer}`);
       
       const peerDeviceInfo = conn.metadata?.deviceInfo || 'Eszköz';
       this.connections.set(conn.peer, conn);
@@ -148,35 +144,40 @@ class PeerNetworkService {
         deviceInfo: peerDeviceInfo
       });
 
-      // Send handshake
       try {
-        conn.send({
+        conn.send(JSON.stringify({
           type: 'handshake',
           deviceInfo: this.myDeviceName
-        });
+        }));
       } catch (e) {}
 
       this.notifyDevicesUpdate();
     });
 
     conn.on('data', (data) => {
-      this.handleDataMessage(conn.peer, data);
+      this.handleIncomingData(conn.peer, data);
     });
 
     conn.on('close', () => {
-      console.log(`🔌 Connection closed with ${conn.peer}`);
       this.connections.delete(conn.peer);
       this.onlineDevices.delete(conn.peer);
-      this.incomingState.delete(conn.peer);
+      this.cleanIncomingState(conn.peer);
       this.notifyDevicesUpdate();
     });
 
     conn.on('error', () => {
       this.connections.delete(conn.peer);
       this.onlineDevices.delete(conn.peer);
-      this.incomingState.delete(conn.peer);
+      this.cleanIncomingState(conn.peer);
       this.notifyDevicesUpdate();
     });
+  }
+
+  cleanIncomingState(peerId) {
+    this.incomingHeaders.delete(peerId);
+    this.receivedChunksMap.delete(peerId);
+    this.receivedBytesMap.delete(peerId);
+    this.receiveStartTimes.delete(peerId);
   }
 
   notifyDevicesUpdate() {
@@ -187,75 +188,89 @@ class PeerNetworkService {
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
 
-  // Handle structured data packets safely
-  handleDataMessage(fromPeerId, data) {
-    if (!data || typeof data !== 'object') return;
+  // Pure WebRTC DataChannel message parser
+  handleIncomingData(fromPeerId, data) {
+    // 1. Text JSON Control Packets (Header, Handshake, End)
+    if (typeof data === 'string') {
+      try {
+        const msg = JSON.parse(data);
 
-    if (data.type === 'handshake') {
-      this.onlineDevices.set(fromPeerId, {
-        id: fromPeerId,
-        deviceInfo: data.deviceInfo || 'Eszköz'
-      });
-      this.notifyDevicesUpdate();
-      return;
-    }
+        if (msg.type === 'handshake') {
+          this.onlineDevices.set(fromPeerId, {
+            id: fromPeerId,
+            deviceInfo: msg.deviceInfo || 'Eszköz'
+          });
+          this.notifyDevicesUpdate();
+          return;
+        }
 
-    if (data.type === 'header') {
-      this.incomingState.set(fromPeerId, {
-        header: data,
-        chunks: [],
-        receivedBytes: 0,
-        startTime: Date.now()
-      });
-      return;
-    }
+        if (msg.type === 'header') {
+          this.incomingHeaders.set(fromPeerId, msg);
+          this.receivedChunksMap.set(fromPeerId, []);
+          this.receivedBytesMap.set(fromPeerId, 0);
+          this.receiveStartTimes.set(fromPeerId, Date.now());
+          return;
+        }
 
-    if (data.type === 'chunk' && data.chunk) {
-      const state = this.incomingState.get(fromPeerId);
-      if (!state) return;
+        if (msg.type === 'end') {
+          const header = this.incomingHeaders.get(fromPeerId);
+          const chunks = this.receivedChunksMap.get(fromPeerId) || [];
 
-      state.chunks.push(data.chunk);
-      state.receivedBytes += data.chunk.byteLength || data.chunk.size || 0;
+          if (header && chunks.length > 0) {
+            const blob = new Blob(chunks, { type: header.mimeType });
+            const file = new File([blob], header.name, { type: header.mimeType });
 
-      const elapsed = (Date.now() - state.startTime) / 1000;
-      const speed = elapsed > 0 ? state.receivedBytes / elapsed : 0;
-      const remainingBytes = state.header.size - state.receivedBytes;
+            if (this.onFileReceived) {
+              this.onFileReceived({
+                file,
+                blobUrl: URL.createObjectURL(blob),
+                name: header.name,
+                size: header.size,
+                mimeType: header.mimeType,
+                fromPeerId
+              });
+            }
+          }
+
+          this.cleanIncomingState(fromPeerId);
+          return;
+        }
+      } catch (err) {
+        console.error('JSON parsing error:', err);
+      }
+    } 
+    // 2. Direct Raw Binary ArrayBuffer Chunks
+    else if (data instanceof ArrayBuffer || data?.buffer instanceof ArrayBuffer) {
+      const buffer = data instanceof ArrayBuffer ? data : data.buffer;
+      const header = this.incomingHeaders.get(fromPeerId);
+      if (!header) return;
+
+      const chunks = this.receivedChunksMap.get(fromPeerId) || [];
+      chunks.push(buffer);
+      this.receivedChunksMap.set(fromPeerId, chunks);
+
+      const currentBytes = (this.receivedBytesMap.get(fromPeerId) || 0) + buffer.byteLength;
+      this.receivedBytesMap.set(fromPeerId, currentBytes);
+
+      const startTime = this.receiveStartTimes.get(fromPeerId) || Date.now();
+      const elapsed = (Date.now() - startTime) / 1000;
+      const speed = elapsed > 0 ? currentBytes / elapsed : 0;
+      const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((state.receivedBytes / state.header.size) * 100));
+      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
           direction: 'receive',
-          fileName: state.header.name,
-          fileSize: state.header.size,
+          fileName: header.name,
+          fileSize: header.size,
           progress,
           speed,
           eta,
-          currentIndex: state.header.currentIndex,
-          totalFiles: state.header.totalFiles
+          currentIndex: header.currentIndex,
+          totalFiles: header.totalFiles
         });
       }
-      return;
-    }
-
-    if (data.type === 'end') {
-      const state = this.incomingState.get(fromPeerId);
-      if (state && state.header) {
-        const blob = new Blob(state.chunks, { type: state.header.mimeType });
-        const file = new File([blob], state.header.name, { type: state.header.mimeType });
-
-        if (this.onFileReceived) {
-          this.onFileReceived({
-            file,
-            blobUrl: URL.createObjectURL(blob),
-            name: state.header.name,
-            size: state.header.size,
-            mimeType: state.header.mimeType,
-            fromPeerId
-          });
-        }
-      }
-      this.incomingState.delete(fromPeerId);
     }
   }
 
@@ -283,15 +298,15 @@ class PeerNetworkService {
 
   async sendFileToConn(conn, file, currentIndex, totalFiles) {
     return new Promise((resolve) => {
-      // 1. Send Header
-      conn.send({
+      // 1. Send JSON Header Control Packet
+      conn.send(JSON.stringify({
         type: 'header',
         name: file.name,
         size: file.size,
         mimeType: file.type || 'application/octet-stream',
         currentIndex,
         totalFiles
-      });
+      }));
 
       let offset = 0;
       const startTime = Date.now();
@@ -299,8 +314,8 @@ class PeerNetworkService {
 
       const sendNextChunk = () => {
         if (offset >= file.size) {
-          // 3. Send End Packet
-          conn.send({ type: 'end', name: file.name });
+          // 3. Send JSON End Control Packet
+          conn.send(JSON.stringify({ type: 'end', name: file.name }));
           resolve();
           return;
         }
@@ -316,11 +331,8 @@ class PeerNetworkService {
         }
 
         const chunkBuffer = e.target.result;
-        // 2. Send Chunk Packet with structured payload
-        conn.send({
-          type: 'chunk',
-          chunk: chunkBuffer
-        });
+        // 2. Send Raw Binary ArrayBuffer Chunk directly over DataChannel
+        conn.send(chunkBuffer);
 
         offset += chunkBuffer.byteLength;
 
@@ -344,8 +356,8 @@ class PeerNetworkService {
           });
         }
 
-        // Smooth 5ms throttle to prevent buffer overload on mobile/desktop Chrome
-        setTimeout(sendNextChunk, 5);
+        // Backpressure check or slight 2ms throttle
+        setTimeout(sendNextChunk, 2);
       };
 
       sendNextChunk();
@@ -361,7 +373,10 @@ class PeerNetworkService {
     }
     this.connections.clear();
     this.onlineDevices.clear();
-    this.incomingState.clear();
+    this.incomingHeaders.clear();
+    this.receivedChunksMap.clear();
+    this.receivedBytesMap.clear();
+    this.receiveStartTimes.clear();
   }
 }
 
