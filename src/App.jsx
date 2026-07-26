@@ -9,7 +9,7 @@ import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
-import { Heart, RotateCw } from 'lucide-react';
+import { Heart, RotateCw, XCircle } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
@@ -20,6 +20,7 @@ export default function App() {
   const [filesToSend, setFilesToSend] = useState([]);
   const [receivedFiles, setReceivedFiles] = useState([]);
   const [transferState, setTransferState] = useState(null);
+  const [pendingSendPeerId, setPendingSendPeerId] = useState(null);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -41,6 +42,7 @@ export default function App() {
       (updatedDevices) => setPeerList(updatedDevices),
       (progressData) => {
         setTransferState(progressData);
+        setPendingSendPeerId(null);
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
           setTimeout(() => {
             setTransferState(null);
@@ -58,8 +60,15 @@ export default function App() {
       },
       (rejectedPeerId) => {
         setTransferState(null);
+        setPendingSendPeerId(null);
         setAlertMsg('🔴 A fogadó fél elutasította az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3500);
+      },
+      (cancelledPeerId) => {
+        // Receiver receives cancellation signal from sender
+        setIncomingPrompt(null);
+        setAlertMsg('ℹ️ A küldő visszavonta az átvitelt.');
+        setTimeout(() => setAlertMsg(null), 3000);
       }
     );
 
@@ -72,14 +81,12 @@ export default function App() {
   const handleForceAppReload = () => {
     setIsRefreshing(true);
     
-    // Clear browser cache storages if supported
     if ('caches' in window) {
       caches.keys().then((names) => {
         names.forEach((name) => caches.delete(name));
       });
     }
 
-    // Force hard reload bypassing cache
     setTimeout(() => {
       window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
     }, 300);
@@ -101,6 +108,16 @@ export default function App() {
     }
   };
 
+  // Sender cancels proposed transfer before receiver accepts
+  const handleCancelProposedSend = () => {
+    if (pendingSendPeerId) {
+      peerNetworkService.cancelProposedSend(pendingSendPeerId);
+      setPendingSendPeerId(null);
+      setAlertMsg('Visszavontad a küldést.');
+      setTimeout(() => setAlertMsg(null), 2500);
+    }
+  };
+
   // Send files to specific target peer
   const handleSendToPeer = async (targetPeerId) => {
     if (filesToSend.length === 0) {
@@ -108,6 +125,7 @@ export default function App() {
       setTimeout(() => setAlertMsg(null), 3000);
       return;
     }
+    setPendingSendPeerId(targetPeerId);
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
     setFilesToSend([]);
   };
@@ -149,6 +167,20 @@ export default function App() {
           </div>
         )}
 
+        {/* Sender Pending Cancellation Banner */}
+        {pendingSendPeerId && !transferState && (
+          <div className="w-full p-4 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-white text-xs font-bold flex items-center justify-between gap-3 animate-pulse">
+            <span>Várakozás a fogadó elfogadására...</span>
+            <button
+              onClick={handleCancelProposedSend}
+              className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Visszavonás</span>
+            </button>
+          </div>
+        )}
+
         {/* Active Transfer Progress Banner */}
         {transferState && (
           <TransferProgress lang={lang} transferState={transferState} />
@@ -171,7 +203,7 @@ export default function App() {
           onSendToAll={handleSendToAll}
         />
 
-        {/* Explicit Force App Refresh Button (Placed right under Online Devices) */}
+        {/* Explicit Force App Reload Button */}
         <div className="w-full flex justify-center -mt-2">
           <button
             onClick={handleForceAppReload}

@@ -15,7 +15,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg animate-fade-in">
       <div className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-indigo-500/40 shadow-2xl relative max-h-[90vh] overflow-hidden">
         
-        {/* Top Icon: Clean Indigo Line Box Icon */}
+        {/* Top Icon: Clean Line Package Icon */}
         <div className="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/40 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
           <Package className="w-8 h-8 text-indigo-400" />
         </div>
@@ -30,39 +30,38 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
           </h2>
         </div>
 
-        {/* Entire Middle Box is Clickable */}
-        <div
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full min-h-[64px] p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/30 hover:border-indigo-400 cursor-pointer flex flex-col justify-center gap-3 transition-all shadow-md active:scale-[0.99] select-none relative"
-        >
-          {/* Top/Main Row */}
-          <div className="flex items-center justify-between w-full my-auto">
-            <div className="flex items-center gap-3">
-              <Package className="w-5 h-5 text-indigo-400 shrink-0" />
-              <p className="text-sm font-extrabold text-white">
-                📦 {totalFiles || 1} elem érkezik
-              </p>
-            </div>
+        {/* Middle Box Container */}
+        <div className="w-full p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/30 flex flex-col gap-3 shadow-md select-none relative">
+          
+          {/* Top Row: Clean Text + Only Top Right Expand/Collapse Trigger is Clickable */}
+          <div className="flex items-center justify-between w-full">
+            <p className="text-sm font-extrabold text-white">
+              {totalFiles || 1} elem érkezik
+            </p>
 
-            {/* Subtle Expand/Collapse Text Indicator on Top Right */}
-            <div className="flex items-center gap-2 text-slate-400 hover:text-indigo-300 text-[11px] font-medium transition-colors">
+            {/* Clickable Expand/Collapse Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 text-[11px] font-bold transition-colors bg-indigo-500/15 px-2.5 py-1 rounded-xl border border-indigo-500/30 active:scale-95 cursor-pointer"
+            >
               {isExpanded ? (
                 <>
                   <span>Összecsukás</span>
-                  <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <Minimize2 className="w-3.5 h-3.5" />
                 </>
               ) : (
                 <>
                   <span>Kibontás</span>
-                  <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <Maximize2 className="w-3.5 h-3.5" />
                 </>
               )}
-            </div>
+            </button>
           </div>
 
-          {/* Expanded Content View (Shows 4-5 items cleanly, smoothly scrollable if more) */}
+          {/* Expanded Content View: Native Touch Scrollable List for all 6, 8, 10 Items */}
           {isExpanded && (
-            <div className="w-full max-h-48 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300 pr-1">
+            <div className="w-full max-h-48 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300 pr-1 touch-pan-y">
               {listToRender.map((name, idx) => (
                 <div key={idx} className="p-2.5 rounded-xl bg-slate-800/80 border border-white/5 truncate font-medium flex items-center gap-2">
                   <span className="text-indigo-400 font-mono text-[11px]">{idx + 1}.</span>
@@ -71,6 +70,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
               ))}
             </div>
           )}
+
         </div>
 
         {/* Two Large Phone Call Style Action Buttons (Elfogadás & Elutasítás) */}
