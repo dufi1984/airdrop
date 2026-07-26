@@ -58,7 +58,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         className="hidden"
       />
 
-      {/* Drag & Drop Zone */}
+      {/* Drag & Drop Zone / Main Page File Box */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -73,11 +73,11 @@ export default function FilePicker({ lang, files, setFiles }) {
         <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
           <UploadCloud className="w-8 h-8 text-indigo-400" />
         </div>
-        <h3 className="text-base sm:text-lg font-bold text-white mb-1">
-          {t.selectFiles}
+        <h3 className="text-lg sm:text-xl font-black text-white mb-1 tracking-wide">
+          Tallózás
         </h3>
         <p className="text-xs sm:text-sm text-slate-400">
-          {t.dragDropText}
+          Húzd ide a fájlokat, vagy kattints ide a megnyitáshoz
         </p>
       </div>
 
