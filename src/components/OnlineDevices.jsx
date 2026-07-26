@@ -16,7 +16,7 @@ export default function OnlineDevices({
 
   const getDeviceIcon = (deviceInfo) => {
     if (deviceInfo && (deviceInfo.includes('iPhone') || deviceInfo.includes('Android') || deviceInfo.includes('iPad'))) {
-      return <Smartphone className="w-5 h-5 text-indigo-400" />;
+      return <Smartphone className="w-5 h-5 text-teal-400" />;
     }
     return <Monitor className="w-5 h-5 text-cyan-400" />;
   };
@@ -24,22 +24,22 @@ export default function OnlineDevices({
   const otherPeers = peerList.filter((p) => !p.isSelf);
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-indigo-500/30">
+    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-700/60">
       
       {/* Header Row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-          <h3 className="text-base sm:text-lg font-extrabold text-white">
+          <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
             {t.onlineDevicesTitle} ({peerList.length})
           </h3>
         </div>
 
-        {/* Send to All Button (Shows if 2+ other devices exist and files are queued) */}
+        {/* Send to All Button */}
         {hasFilesSelected && otherPeers.length > 1 && (
           <button
             onClick={onSendToAll}
-            className="py-2 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95 border border-indigo-400/40"
+            className="py-2 px-3.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95 border border-teal-400/40"
           >
             <Users className="w-4 h-4" />
             <span>{t.sendToAllDevices}</span>
@@ -57,39 +57,39 @@ export default function OnlineDevices({
               key={device.id}
               className={`w-full p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                 device.isSelf
-                  ? 'bg-slate-900/40 border-white/5 opacity-80'
+                  ? 'bg-zinc-900/40 border-white/5 opacity-80'
                   : isPending
-                  ? 'bg-indigo-500/15 border-indigo-500/50 shadow-lg'
-                  : 'bg-slate-900/90 border-indigo-500/20 hover:border-indigo-400/60 shadow-md'
+                  ? 'bg-teal-500/20 border-teal-500/60 shadow-lg'
+                  : 'bg-zinc-900/90 border-zinc-700/60 hover:border-teal-400/60 shadow-md'
               }`}
             >
-              {/* Clean Device Info (Without ID Subtitle) */}
+              {/* Clean Device Info */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 shrink-0">
+                <div className="p-2.5 rounded-xl bg-teal-500/15 border border-teal-500/30 shrink-0">
                   {getDeviceIcon(device.deviceInfo)}
                 </div>
                 <div className="flex items-center gap-2.5 truncate">
-                  <p className="text-sm font-extrabold text-white truncate">
+                  <p className="text-sm font-extrabold text-zinc-100 truncate">
                     {device.deviceInfo}
                   </p>
                   {device.isSelf && (
-                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-extrabold px-2 py-0.5 rounded-md border border-indigo-500/30 shrink-0">
+                    <span className="text-[10px] bg-teal-500/20 text-teal-300 font-extrabold px-2 py-0.5 rounded-md border border-teal-500/40 shrink-0">
                       {t.thisDevice}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Status / Action Buttons on Device Card */}
+              {/* Status / Action Buttons */}
               {device.isSelf ? (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 self-end sm:self-center">
+                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-emerald-500/15 px-3 py-1.5 rounded-xl border border-emerald-500/30 self-end sm:self-center">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{t.readyForReceiving}</span>
                 </div>
               ) : isPending ? (
-                /* Pending Approval state on THIS specific device card with Cancel button */
+                /* Pending Approval state */
                 <div className="flex items-center gap-2 self-end sm:self-center">
-                  <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/15 px-3 py-1.5 rounded-xl border border-amber-500/30 animate-pulse">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-500/40 animate-pulse">
                     <Clock className="w-4 h-4 text-amber-400" />
                     <span>Várakozás elfogadásra...</span>
                   </div>
@@ -108,8 +108,8 @@ export default function OnlineDevices({
                   onClick={() => onSendToPeer(device.id)}
                   className={`w-full sm:w-auto py-2.5 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md border ${
                     hasFilesSelected
-                      ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 text-white border-indigo-400/40 hover:opacity-95 shadow-indigo-500/20 animate-pulse'
-                      : 'bg-slate-800 text-slate-400 border-white/10 hover:text-white hover:bg-slate-700'
+                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-teal-400/50 hover:opacity-95 shadow-teal-500/20 animate-pulse'
+                      : 'bg-zinc-800 text-zinc-300 border-white/15 hover:text-white hover:bg-zinc-700'
                   }`}
                 >
                   <Send className="w-4 h-4" />
@@ -122,7 +122,7 @@ export default function OnlineDevices({
         })}
 
         {otherPeers.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-2 italic">
+          <p className="text-xs text-zinc-400 text-center py-2 italic">
             {t.noOtherDevices}
           </p>
         )}
