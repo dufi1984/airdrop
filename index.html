@@ -2,7 +2,7 @@
 <html lang="hu">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%236366f1%22/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- Strict Cache-Busting Headers for PWA / iOS Safari / Android Chrome -->
@@ -13,11 +13,11 @@
     <!-- Apple WebApp / PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Airdrop" />
+    <meta name="apple-mobile-web-app-title" content="Airdrop by Dufi" />
 
     <meta name="theme-color" content="#0f172a" />
-    <meta name="description" content="Közvetlen P2P fájlküldés és képmegosztás böngészőből, telepítés nélkül." />
-    <title>Airdrop P2P</title>
+    <meta name="description" content="Közvetlen P2P fájlküldés és képmegosztás eszközök között." />
+    <title>Airdrop by Dufi</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,6 @@
       // 1. Reload when reopening app ONLY IF NO FILES ARE QUEUED (prevents clearing queued photos)
       document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
-          // If user already selected photos/videos to send, DO NOT RELOAD!
           if (window.__airdrop_has_files_queued) return;
 
           var lastReload = sessionStorage.getItem('last_pwa_reload');
@@ -50,7 +49,6 @@
 
       document.addEventListener('touchmove', function(e) {
         var currentY = e.touches[0].pageY;
-        // Swiping down from top by more than 130px forces fresh reload
         if (window.scrollY === 0 && currentY - touchStartY > 130) {
           window.location.reload(true);
         }

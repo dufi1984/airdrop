@@ -1,6 +1,6 @@
 export const translations = {
   hu: {
-    appTitle: "Airdrop P2P",
+    appTitle: "Airdrop by Dufi",
     appSubtitle: "Közvetlen ingyenes fájlátvitel eszközök között",
     onlineDevicesTitle: "Online Eszközök",
     thisDevice: "Ez az eszköz (Ön)",
@@ -36,7 +36,7 @@ export const translations = {
     hidePhotos: "Képek elrejtése",
   },
   en: {
-    appTitle: "Airdrop P2P",
+    appTitle: "Airdrop by Dufi",
     appSubtitle: "Direct free file transfer between devices",
     onlineDevicesTitle: "Online Devices",
     thisDevice: "This device (You)",
