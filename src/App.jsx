@@ -26,6 +26,11 @@ export default function App() {
 
   const t = translations[lang];
 
+  // Preserve file queue state in window object to prevent background reload from clearing selected files
+  useEffect(() => {
+    window.__airdrop_has_files_queued = filesToSend.length > 0;
+  }, [filesToSend]);
+
   // Initialize instant PeerJS cloud network
   useEffect(() => {
     peerNetworkService.init(

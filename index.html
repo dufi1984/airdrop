@@ -23,21 +23,24 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Automatic Pull-to-Refresh & Foreground Reload Script for PWA -->
+    <!-- Automatic Pull-to-Refresh & Guarded Background Reload Script -->
     <script>
-      // 1. Force reload when reopening app icon from home screen background
+      // 1. Reload when reopening app ONLY IF NO FILES ARE QUEUED (prevents clearing queued photos)
       document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
+          // If user already selected photos/videos to send, DO NOT RELOAD!
+          if (window.__airdrop_has_files_queued) return;
+
           var lastReload = sessionStorage.getItem('last_pwa_reload');
           var now = Date.now();
-          if (!lastReload || now - parseInt(lastReload) > 10000) {
+          if (!lastReload || now - parseInt(lastReload) > 15000) {
             sessionStorage.setItem('last_pwa_reload', now.toString());
             window.location.reload(true);
           }
         }
       });
 
-      // 2. Pull-to-Refresh gesture for standalone app mode (swiping down from top)
+      // 2. Explicit Pull-to-Refresh gesture (swiping down from top)
       let touchStartY = 0;
       document.addEventListener('touchstart', function(e) {
         if (window.scrollY === 0) {
@@ -47,8 +50,8 @@
 
       document.addEventListener('touchmove', function(e) {
         var currentY = e.touches[0].pageY;
-        // If swiping down from top by more than 120px, force reload fresh assets
-        if (window.scrollY === 0 && currentY - touchStartY > 120) {
+        // Swiping down from top by more than 130px forces fresh reload
+        if (window.scrollY === 0 && currentY - touchStartY > 130) {
           window.location.reload(true);
         }
       }, { passive: true });
