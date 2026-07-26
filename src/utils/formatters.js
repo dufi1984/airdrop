@@ -23,8 +23,14 @@ export function formatTime(seconds) {
   return `${s}s`;
 }
 
-// Enhanced device and browser detection for precise peer names
+// Enhanced device and browser detection
 export function detectDeviceName() {
+  // Check if user set a custom device nickname in local storage
+  const customName = localStorage.getItem('airdrop_custom_device_name');
+  if (customName && customName.trim()) {
+    return customName.trim();
+  }
+
   const ua = navigator.userAgent;
   let os = 'Eszköz';
   let browser = '';

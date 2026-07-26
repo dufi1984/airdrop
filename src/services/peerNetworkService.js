@@ -49,6 +49,26 @@ class PeerNetworkService {
     this.tryClaimSlot(1);
   }
 
+  updateMyDeviceName(newName) {
+    if (!newName || !newName.trim()) return;
+    this.myDeviceName = newName.trim();
+    localStorage.setItem('airdrop_custom_device_name', this.myDeviceName);
+
+    // Broadcast updated name to all connected peers
+    this.connections.forEach((conn) => {
+      if (conn && conn.open) {
+        try {
+          conn.send(JSON.stringify({
+            type: 'handshake',
+            deviceInfo: this.myDeviceName
+          }));
+        } catch (e) {}
+      }
+    });
+
+    this.notifyDevicesUpdate();
+  }
+
   tryClaimSlot(slotIndex) {
     if (slotIndex > MAX_SLOTS || this.isDestroyed) return;
 
