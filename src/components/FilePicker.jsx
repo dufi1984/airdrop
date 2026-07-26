@@ -76,12 +76,9 @@ export default function FilePicker({ lang, files, setFiles }) {
         <h3 className="text-base sm:text-lg font-bold text-white mb-1">
           {t.selectFiles}
         </h3>
-        <p className="text-xs sm:text-sm text-slate-400 mb-2">
+        <p className="text-xs sm:text-sm text-slate-400">
           {t.dragDropText}
         </p>
-        <span className="text-[11px] text-indigo-300/70 font-medium">
-          {t.supportedTypes}
-        </span>
       </div>
 
       {/* Selected Files Queue */}

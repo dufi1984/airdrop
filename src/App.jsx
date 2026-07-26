@@ -5,6 +5,7 @@ import OnlineDevices from './components/OnlineDevices';
 import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
 import ServerConfigModal from './components/ServerConfigModal';
+import QrModal from './components/QrModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
 import { Heart } from 'lucide-react';
@@ -20,6 +21,7 @@ export default function App() {
   const [transferState, setTransferState] = useState(null);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [alertMsg, setAlertMsg] = useState(null);
 
   const t = translations[lang];
@@ -72,11 +74,12 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
       
-      {/* Header Bar (Clean status badge + Settings gear icon) */}
+      {/* Header Bar */}
       <Header
         lang={lang}
         isConnected={isConnected}
         onlineCount={peerList.length}
+        onOpenQr={() => setShowQrModal(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
 
@@ -131,6 +134,14 @@ export default function App() {
           GitHub: <a href="https://github.com/dufi1984/airdrop" target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300">dufi1984/airdrop</a>
         </p>
       </footer>
+
+      {/* QR Code Share Modal */}
+      {showQrModal && (
+        <QrModal
+          lang={lang}
+          onClose={() => setShowQrModal(false)}
+        />
+      )}
 
       {/* Server & Language Settings Modal */}
       {showSettings && (
