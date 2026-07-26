@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Wifi, QrCode } from 'lucide-react';
+import { Settings, CheckCircle2, AlertTriangle, QrCode } from 'lucide-react';
 
 export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSettings }) {
   return (
@@ -19,18 +19,23 @@ export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSetti
         {/* Top Right: Status Badge & Settings Icon */}
         <div className="flex items-center gap-2.5">
           
-          {/* Status Badge (Material Blue Accent) */}
+          {/* Status Badge: Circle Checkmark (Green if OK) or Triangle Exclamation (Yellow if Connecting) */}
           <div
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all ${
               isConnected
-                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 shadow-sm'
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
                 : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
             }`}
             title={isConnected ? `Csatlakozva (Online: ${onlineCount})` : 'Kapcsolódás...'}
           >
-            <Wifi className="w-4 h-4 text-blue-400" />
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-[11px] font-mono text-blue-200">({onlineCount})</span>
+            {isConnected ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            )}
+            <span className={`text-[11px] font-mono ${isConnected ? 'text-emerald-200' : 'text-amber-200'}`}>
+              ({onlineCount})
+            </span>
           </div>
 
           {/* Settings Button */}
