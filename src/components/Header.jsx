@@ -3,13 +3,13 @@ import { Settings, Wifi, QrCode } from 'lucide-react';
 
 export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSettings }) {
   return (
-    <header className="w-full glass-panel sticky top-0 z-30 border-b border-white/10 px-4 py-3 sm:px-6">
+    <header className="w-full glass-panel sticky top-0 z-30 border-b border-white/10 px-4 safe-top-padding pb-3">
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         
         {/* Top Left: Share Button */}
         <button
           onClick={onOpenQr}
-          className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-white/10 transition-all active:scale-95 flex items-center gap-2 text-xs font-semibold"
+          className="p-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border border-white/10 transition-all active:scale-95 flex items-center gap-2 text-xs font-semibold shadow-md"
           title="Megosztás"
         >
           <QrCode className="w-4 h-4 text-indigo-400" />
@@ -36,7 +36,7 @@ export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSetti
           {/* Settings Icon Button */}
           <button
             onClick={onOpenSettings}
-            className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-white/10 transition-all active:scale-95"
+            className="p-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border border-white/10 transition-all active:scale-95 shadow-md"
             title="Beállítások"
           >
             <Settings className="w-4 h-4 text-indigo-400" />

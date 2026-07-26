@@ -10,19 +10,24 @@
   }
 }
 
+/* Safe area padding for mobile notch, Dynamic Island, and native status bar */
+.safe-top-padding {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
 /* Glassmorphism card styles */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .glass-panel-glow {
-  background: rgba(30, 27, 75, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(30, 27, 75, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(129, 140, 248, 0.25);
   box-shadow: 0 0 35px rgba(99, 102, 241, 0.15);
 }
