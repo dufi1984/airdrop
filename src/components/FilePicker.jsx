@@ -42,7 +42,7 @@ export default function FilePicker({ lang, files, setFiles }) {
   };
 
   const getFileIcon = (file) => {
-    if (file.type.startsWith('image/')) return <Image className="w-5 h-5 text-teal-400" />;
+    if (file.type.startsWith('image/')) return <Image className="w-5 h-5 text-blue-400" />;
     if (file.type.startsWith('video/')) return <Film className="w-5 h-5 text-cyan-400" />;
     return <FileText className="w-5 h-5 text-amber-400" />;
   };
@@ -66,12 +66,12 @@ export default function FilePicker({ lang, files, setFiles }) {
         onDrop={handleDrop}
         className={`w-full min-h-[160px] rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer group ${
           isDragging
-            ? 'border-teal-400 bg-teal-500/20 scale-[0.99]'
-            : 'border-zinc-700 bg-zinc-900/80 hover:border-teal-400 hover:bg-zinc-900/90'
+            ? 'border-blue-400 bg-blue-500/20 scale-[0.99]'
+            : 'border-zinc-700 bg-zinc-900/80 hover:border-blue-400 hover:bg-zinc-900/90'
         }`}
       >
-        <div className="w-14 h-14 rounded-2xl bg-teal-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-          <UploadCloud className="w-8 h-8 text-teal-400" />
+        <div className="w-14 h-14 rounded-2xl bg-blue-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+          <UploadCloud className="w-8 h-8 text-blue-400" />
         </div>
         <h3 className="text-lg sm:text-xl font-black text-zinc-100 mb-1 tracking-wide">
           Tallózás
@@ -121,8 +121,8 @@ export default function FilePicker({ lang, files, setFiles }) {
           </div>
 
           {/* Guidance Banner */}
-          <div className="p-3 rounded-xl bg-teal-500/15 border border-teal-500/30 text-xs text-teal-300 flex items-center justify-center gap-2 font-semibold">
-            <ArrowDown className="w-4 h-4 animate-bounce" />
+          <div className="p-3 rounded-xl bg-blue-500/15 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-semibold">
+            <ArrowDown className="w-4 h-4 animate-bounce text-blue-400" />
             <span>Koppints az alábbi Online Eszköz kártyára a küldés elindításához!</span>
           </div>
         </div>

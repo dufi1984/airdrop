@@ -110,10 +110,10 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </span>
       </p>
 
-      {/* Main Action Button */}
+      {/* Main Action Button (Material Blue Gradient) */}
       <button
         onClick={handleSaveOrDownloadAll}
-        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-emerald-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-emerald-400/40"
+        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40"
       >
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>

@@ -13,16 +13,16 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg animate-fade-in">
-      <div className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-teal-500/50 shadow-2xl relative max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-blue-500/50 shadow-2xl relative max-h-[90vh] overflow-hidden">
         
         {/* Top Icon */}
-        <div className="w-16 h-16 rounded-2xl bg-teal-500/15 border border-teal-400/40 flex items-center justify-center shadow-lg shadow-teal-500/20 shrink-0">
-          <Package className="w-8 h-8 text-teal-400" />
+        <div className="w-16 h-16 rounded-2xl bg-blue-500/15 border border-blue-400/40 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+          <Package className="w-8 h-8 text-blue-400" />
         </div>
 
         {/* Title */}
         <div className="flex flex-col gap-1 shrink-0">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-teal-400">
+          <span className="text-xs font-extrabold uppercase tracking-widest text-blue-400">
             Bejövő Átvitel
           </span>
           <h2 className="text-lg sm:text-xl font-black text-zinc-100">
@@ -43,7 +43,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-2 text-teal-300 hover:text-teal-200 text-[11px] font-bold transition-colors bg-teal-500/20 px-2.5 py-1 rounded-xl border border-teal-500/40 active:scale-95 cursor-pointer"
+              className="flex items-center gap-2 text-blue-300 hover:text-blue-200 text-[11px] font-bold transition-colors bg-blue-500/20 px-2.5 py-1 rounded-xl border border-blue-500/40 active:scale-95 cursor-pointer"
             >
               {isExpanded ? (
                 <>
@@ -64,7 +64,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
             <div className="w-full max-h-48 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-zinc-300 pr-1 touch-pan-y">
               {listToRender.map((name, idx) => (
                 <div key={idx} className="p-2.5 rounded-xl bg-zinc-800 border border-white/10 truncate font-medium flex items-center gap-2 text-zinc-200">
-                  <span className="text-teal-400 font-mono text-[11px]">{idx + 1}.</span>
+                  <span className="text-blue-400 font-mono text-[11px]">{idx + 1}.</span>
                   <span className="truncate">{name}</span>
                 </div>
               ))}
@@ -85,10 +85,10 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
             <span>ELUTASÍTÁS</span>
           </button>
 
-          {/* 🟢 ELFOGADÁS */}
+          {/* 🟢 ELFOGADÁS (Material Blue/Cyan Gradient) */}
           <button
             onClick={onAccept}
-            className="w-full py-4 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/40 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-400/40"
+            className="w-full py-4 px-3 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-blue-500/40 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-blue-400/40"
           >
             <CheckCircle2 className="w-6 h-6 text-white" />
             <span>ELFOGADÁS</span>

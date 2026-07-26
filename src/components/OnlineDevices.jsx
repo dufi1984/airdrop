@@ -16,7 +16,7 @@ export default function OnlineDevices({
 
   const getDeviceIcon = (deviceInfo) => {
     if (deviceInfo && (deviceInfo.includes('iPhone') || deviceInfo.includes('Android') || deviceInfo.includes('iPad'))) {
-      return <Smartphone className="w-5 h-5 text-teal-400" />;
+      return <Smartphone className="w-5 h-5 text-blue-400" />;
     }
     return <Monitor className="w-5 h-5 text-cyan-400" />;
   };
@@ -39,7 +39,7 @@ export default function OnlineDevices({
         {hasFilesSelected && otherPeers.length > 1 && (
           <button
             onClick={onSendToAll}
-            className="py-2 px-3.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95 border border-teal-400/40"
+            className="py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95 border border-blue-400/40"
           >
             <Users className="w-4 h-4" />
             <span>{t.sendToAllDevices}</span>
@@ -59,13 +59,13 @@ export default function OnlineDevices({
                 device.isSelf
                   ? 'bg-zinc-900/40 border-white/5 opacity-80'
                   : isPending
-                  ? 'bg-teal-500/20 border-teal-500/60 shadow-lg'
-                  : 'bg-zinc-900/90 border-zinc-700/60 hover:border-teal-400/60 shadow-md'
+                  ? 'bg-blue-500/20 border-blue-500/60 shadow-lg'
+                  : 'bg-zinc-900/90 border-zinc-700/60 hover:border-blue-400/60 shadow-md'
               }`}
             >
               {/* Clean Device Info */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-teal-500/15 border border-teal-500/30 shrink-0">
+                <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 shrink-0">
                   {getDeviceIcon(device.deviceInfo)}
                 </div>
                 <div className="flex items-center gap-2.5 truncate">
@@ -73,7 +73,7 @@ export default function OnlineDevices({
                     {device.deviceInfo}
                   </p>
                   {device.isSelf && (
-                    <span className="text-[10px] bg-teal-500/20 text-teal-300 font-extrabold px-2 py-0.5 rounded-md border border-teal-500/40 shrink-0">
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 font-extrabold px-2 py-0.5 rounded-md border border-blue-500/40 shrink-0">
                       {t.thisDevice}
                     </span>
                   )}
@@ -108,7 +108,7 @@ export default function OnlineDevices({
                   onClick={() => onSendToPeer(device.id)}
                   className={`w-full sm:w-auto py-2.5 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md border ${
                     hasFilesSelected
-                      ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-teal-400/50 hover:opacity-95 shadow-teal-500/20 animate-pulse'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-blue-400/50 hover:opacity-95 shadow-blue-500/20 animate-pulse'
                       : 'bg-zinc-800 text-zinc-300 border-white/15 hover:text-white hover:bg-zinc-700'
                   }`}
                 >
