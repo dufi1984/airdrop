@@ -1,20 +1,12 @@
-import React, { useState } from 'react';
-import { Settings, X, Globe, Save, User } from 'lucide-react';
+import React from 'react';
+import { Settings, X, Globe, Save } from 'lucide-react';
 import { translations } from '../i18n/translations';
-import { peerNetworkService } from '../services/peerNetworkService';
-import { detectDeviceName } from '../utils/formatters';
 
 export default function ServerConfigModal({ lang, setLang, onClose }) {
   const t = translations[lang];
-  const [deviceName, setDeviceName] = useState(
-    localStorage.getItem('airdrop_custom_device_name') || detectDeviceName()
-  );
 
   const handleSave = (e) => {
     e.preventDefault();
-    if (deviceName.trim()) {
-      peerNetworkService.updateMyDeviceName(deviceName.trim());
-    }
     onClose();
   };
 
@@ -47,26 +39,8 @@ export default function ServerConfigModal({ lang, setLang, onClose }) {
 
         <form onSubmit={handleSave} className="flex flex-col gap-5">
           
-          {/* Custom Device Nickname Input */}
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-slate-300 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-400" />
-              <span>Saját Eszköz Neve (Hálózaton megjelenő név)</span>
-            </label>
-            <input
-              type="text"
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-              placeholder="pl. Tamás iPhone 17-ese / Nappali PC"
-              className="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-indigo-500/30 text-white text-xs font-semibold focus:outline-none focus:border-indigo-400 transition-colors"
-            />
-            <p className="text-[11px] text-slate-400">
-              Ezt a nevet fogják látni a többiek az Online Eszközök listájában.
-            </p>
-          </div>
-
           {/* Language Selector Section */}
-          <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+          <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-slate-300 flex items-center gap-2">
               <Globe className="w-4 h-4 text-indigo-400" />
               <span>{t.switchLang}</span>
