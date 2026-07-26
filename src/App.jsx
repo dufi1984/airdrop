@@ -80,7 +80,7 @@ export default function App() {
     };
   }, []);
 
-  // Force cache-busting reload button action for PWA standalone app mode
+  // Clean in-place hard reload without modifying URL bar
   const handleForceAppReload = () => {
     setIsRefreshing(true);
     
@@ -91,8 +91,8 @@ export default function App() {
     }
 
     setTimeout(() => {
-      window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
-    }, 300);
+      window.location.reload(true);
+    }, 200);
   };
 
   // Accept incoming transfer prompt
@@ -186,7 +186,7 @@ export default function App() {
           setFiles={setFilesToSend}
         />
 
-        {/* 2. Online Devices Vertical List (With per-device status & Visszavonás button) */}
+        {/* 2. Online Devices Vertical List */}
         <OnlineDevices
           lang={lang}
           myId={peerNetworkService.myId}
@@ -198,15 +198,15 @@ export default function App() {
           onCancelSendToPeer={handleCancelProposedSend}
         />
 
-        {/* Explicit Force App Reload Button */}
+        {/* Clean In-Place Force App Reload Button */}
         <div className="w-full flex justify-center -mt-2">
           <button
             onClick={handleForceAppReload}
             className="py-2.5 px-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
-            title="Legújabb verzió betöltése"
+            title="Oldal frissítése"
           >
             <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>App Frissítése (Legújabb verzió letöltése)</span>
+            <span>App Frissítése</span>
           </button>
         </div>
 
