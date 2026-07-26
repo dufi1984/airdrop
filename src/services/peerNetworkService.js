@@ -3,7 +3,7 @@ import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 6;
-const SLOT_PREFIX = 'airdrop-p2p-v4-';
+const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 class PeerNetworkService {
   constructor() {
@@ -12,9 +12,7 @@ class PeerNetworkService {
     this.mySlotIndex = null;
     this.myDeviceName = detectDeviceName();
 
-    // Map of peerId -> connection object
     this.connections = new Map();
-    // Map of peerId -> { id, deviceInfo }
     this.onlineDevices = new Map();
 
     // Callbacks
@@ -22,22 +20,27 @@ class PeerNetworkService {
     this.onDevicesUpdate = null;
     this.onProgress = null;
     this.onFileReceived = null;
+    this.onIncomingPrompt = null;
+    this.onRejected = null;
 
-    // Receiver state per sender
+    // Incoming file assembly states per sender
     this.incomingHeaders = new Map();
     this.receivedChunksMap = new Map();
     this.receivedBytesMap = new Map();
     this.receiveStartTimes = new Map();
+    this.pendingTransferFiles = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
   }
 
-  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived) {
+  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected) {
     this.onStatusChange = onStatusChange;
     this.onDevicesUpdate = onDevicesUpdate;
     this.onProgress = onProgress;
     this.onFileReceived = onFileReceived;
+    this.onIncomingPrompt = onIncomingPrompt;
+    this.onRejected = onRejected;
     this.isDestroyed = false;
 
     this.tryClaimSlot(1);
@@ -178,6 +181,7 @@ class PeerNetworkService {
     this.receivedChunksMap.delete(peerId);
     this.receivedBytesMap.delete(peerId);
     this.receiveStartTimes.delete(peerId);
+    this.pendingTransferFiles.delete(peerId);
   }
 
   notifyDevicesUpdate() {
@@ -188,9 +192,8 @@ class PeerNetworkService {
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
 
-  // Pure WebRTC DataChannel message parser
+  // Handle WebRTC DataChannel message parser
   handleIncomingData(fromPeerId, data) {
-    // 1. Text JSON Control Packets (Header, Handshake, End)
     if (typeof data === 'string') {
       try {
         const msg = JSON.parse(data);
@@ -201,6 +204,37 @@ class PeerNetworkService {
             deviceInfo: msg.deviceInfo || 'Eszköz'
           });
           this.notifyDevicesUpdate();
+          return;
+        }
+
+        // Sender proposed transfer header
+        if (msg.type === 'propose_transfer') {
+          const senderInfo = this.onlineDevices.get(fromPeerId);
+          if (this.onIncomingPrompt) {
+            this.onIncomingPrompt({
+              fromPeerId,
+              senderName: senderInfo ? senderInfo.deviceInfo : 'Online Eszköz',
+              totalFiles: msg.totalFiles,
+              fileName: msg.fileName
+            });
+          }
+          return;
+        }
+
+        // Receiver accepted transfer
+        if (msg.type === 'accept_transfer') {
+          const pending = this.pendingTransferFiles.get(fromPeerId);
+          if (pending) {
+            this.executeSendFiles(fromPeerId, pending);
+            this.pendingTransferFiles.delete(fromPeerId);
+          }
+          return;
+        }
+
+        // Receiver rejected transfer
+        if (msg.type === 'reject_transfer') {
+          this.pendingTransferFiles.delete(fromPeerId);
+          if (this.onRejected) this.onRejected(fromPeerId);
           return;
         }
 
@@ -239,7 +273,6 @@ class PeerNetworkService {
         console.error('JSON parsing error:', err);
       }
     } 
-    // 2. Direct Raw Binary ArrayBuffer Chunks
     else if (data instanceof ArrayBuffer || data?.buffer instanceof ArrayBuffer) {
       const buffer = data instanceof ArrayBuffer ? data : data.buffer;
       const header = this.incomingHeaders.get(fromPeerId);
@@ -274,21 +307,37 @@ class PeerNetworkService {
     }
   }
 
-  // Send files to specific peer
-  async sendFilesToPeer(targetPeerId, fileList) {
-    const conn = this.connections.get(targetPeerId);
-    if (!conn || !conn.open) {
-      console.error(`Connection to ${targetPeerId} is not open`);
-      return;
-    }
-
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      await this.sendFileToConn(conn, file, i + 1, fileList.length);
+  // Accept incoming transfer prompt
+  acceptIncoming(fromPeerId) {
+    const conn = this.connections.get(fromPeerId);
+    if (conn && conn.open) {
+      conn.send(JSON.stringify({ type: 'accept_transfer' }));
     }
   }
 
-  // Send files to all online peers
+  // Reject incoming transfer prompt
+  rejectIncoming(fromPeerId) {
+    const conn = this.connections.get(fromPeerId);
+    if (conn && conn.open) {
+      conn.send(JSON.stringify({ type: 'reject_transfer' }));
+    }
+  }
+
+  // Propose transfer to target peer
+  async sendFilesToPeer(targetPeerId, fileList) {
+    const conn = this.connections.get(targetPeerId);
+    if (!conn || !conn.open) return;
+
+    this.pendingTransferFiles.set(targetPeerId, fileList);
+
+    // Propose transfer to trigger phone call style modal on receiver device
+    conn.send(JSON.stringify({
+      type: 'propose_transfer',
+      totalFiles: fileList.length,
+      fileName: fileList[0].name
+    }));
+  }
+
   async sendFilesToAll(fileList) {
     const activePeers = Array.from(this.connections.keys());
     for (const peerId of activePeers) {
@@ -296,9 +345,18 @@ class PeerNetworkService {
     }
   }
 
+  async executeSendFiles(targetPeerId, fileList) {
+    const conn = this.connections.get(targetPeerId);
+    if (!conn || !conn.open) return;
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      await this.sendFileToConn(conn, file, i + 1, fileList.length);
+    }
+  }
+
   async sendFileToConn(conn, file, currentIndex, totalFiles) {
     return new Promise((resolve) => {
-      // 1. Send JSON Header Control Packet
       conn.send(JSON.stringify({
         type: 'header',
         name: file.name,
@@ -314,7 +372,6 @@ class PeerNetworkService {
 
       const sendNextChunk = () => {
         if (offset >= file.size) {
-          // 3. Send JSON End Control Packet
           conn.send(JSON.stringify({ type: 'end', name: file.name }));
           resolve();
           return;
@@ -331,7 +388,6 @@ class PeerNetworkService {
         }
 
         const chunkBuffer = e.target.result;
-        // 2. Send Raw Binary ArrayBuffer Chunk directly over DataChannel
         conn.send(chunkBuffer);
 
         offset += chunkBuffer.byteLength;
@@ -356,7 +412,6 @@ class PeerNetworkService {
           });
         }
 
-        // Backpressure check or slight 2ms throttle
         setTimeout(sendNextChunk, 2);
       };
 
@@ -377,6 +432,7 @@ class PeerNetworkService {
     this.receivedChunksMap.clear();
     this.receivedBytesMap.clear();
     this.receiveStartTimes.clear();
+    this.pendingTransferFiles.clear();
   }
 }
 

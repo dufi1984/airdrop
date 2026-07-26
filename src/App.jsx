@@ -6,6 +6,7 @@ import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
 import ServerConfigModal from './components/ServerConfigModal';
 import QrModal from './components/QrModal';
+import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
 import { Heart } from 'lucide-react';
@@ -22,16 +23,17 @@ export default function App() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [incomingPrompt, setIncomingPrompt] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
 
   const t = translations[lang];
 
-  // Preserve file queue state in window object to prevent background reload from clearing selected files
+  // Preserve file queue state in window object
   useEffect(() => {
     window.__airdrop_has_files_queued = filesToSend.length > 0;
   }, [filesToSend]);
 
-  // Initialize instant PeerJS cloud network
+  // Initialize instant PeerJS cloud network with phone call style incoming prompt callback
   useEffect(() => {
     peerNetworkService.init(
       (status) => setIsConnected(status),
@@ -40,6 +42,14 @@ export default function App() {
       (receivedFileData) => {
         setReceivedFiles((prev) => [receivedFileData, ...prev]);
         setTransferState(null);
+      },
+      (promptInfo) => {
+        // Phone call style incoming transfer prompt
+        setIncomingPrompt(promptInfo);
+      },
+      (rejectedPeerId) => {
+        setAlertMsg('A fogadó fél elutasította az átvitelt.');
+        setTimeout(() => setAlertMsg(null), 3500);
       }
     );
 
@@ -47,6 +57,22 @@ export default function App() {
       peerNetworkService.destroy();
     };
   }, []);
+
+  // Accept incoming transfer prompt
+  const handleAcceptIncoming = () => {
+    if (incomingPrompt) {
+      peerNetworkService.acceptIncoming(incomingPrompt.fromPeerId);
+      setIncomingPrompt(null);
+    }
+  };
+
+  // Reject incoming transfer prompt
+  const handleRejectIncoming = () => {
+    if (incomingPrompt) {
+      peerNetworkService.rejectIncoming(incomingPrompt.fromPeerId);
+      setIncomingPrompt(null);
+    }
+  };
 
   // Send files to specific target peer
   const handleSendToPeer = async (targetPeerId) => {
@@ -134,6 +160,16 @@ export default function App() {
         <span>Airdrop &bull; Ingyenes nyílt forráskódú szoftver</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
+
+      {/* Phone Call Style Incoming Transfer Modal Prompt */}
+      {incomingPrompt && (
+        <IncomingPromptModal
+          lang={lang}
+          incomingInfo={incomingPrompt}
+          onAccept={handleAcceptIncoming}
+          onReject={handleRejectIncoming}
+        />
+      )}
 
       {/* QR Code Share Modal */}
       {showQrModal && (
