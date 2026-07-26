@@ -63,25 +63,20 @@ export default function OnlineDevices({
                   : 'bg-slate-900/90 border-indigo-500/20 hover:border-indigo-400/60 shadow-md'
               }`}
             >
-              {/* Device Info */}
+              {/* Clean Device Info (Without ID Subtitle) */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 shrink-0">
                   {getDeviceIcon(device.deviceInfo)}
                 </div>
-                <div className="truncate">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold text-white truncate">
-                      {device.deviceInfo}
-                    </p>
-                    {device.isSelf && (
-                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-extrabold px-2 py-0.5 rounded-md border border-indigo-500/30 shrink-0">
-                        {t.thisDevice}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-400 font-mono truncate">
-                    ID: {device.id}
+                <div className="flex items-center gap-2.5 truncate">
+                  <p className="text-sm font-extrabold text-white truncate">
+                    {device.deviceInfo}
                   </p>
+                  {device.isSelf && (
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-extrabold px-2 py-0.5 rounded-md border border-indigo-500/30 shrink-0">
+                      {t.thisDevice}
+                    </span>
+                  )}
                 </div>
               </div>
 

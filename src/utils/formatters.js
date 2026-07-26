@@ -28,41 +28,31 @@ export function formatEta(seconds) {
   return formatTime(seconds);
 }
 
-// Automatic device and browser detection based on factory browser navigator API
+// Clean device detection without confusing browser parenthesis suffixes
 export function detectDeviceName() {
   const ua = navigator.userAgent;
-  let os = 'Eszköz';
-  let browser = '';
 
-  // Detect Browser
-  if (/Chrome/.test(ua) && !/Edg/.test(ua) && !/OPR/.test(ua)) {
-    browser = 'Chrome';
-  } else if (/Safari/.test(ua) && !/Chrome/.test(ua)) {
-    browser = 'Safari';
-  } else if (/Edg/.test(ua)) {
-    browser = 'Edge';
-  } else if (/Firefox/.test(ua)) {
-    browser = 'Firefox';
-  }
-
-  // Detect Operating System & Form Factor
   if (/iPhone/.test(ua)) {
-    os = 'iPhone';
-  } else if (/iPad/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) {
-    os = 'iPad';
-  } else if (/Android/.test(ua)) {
+    return 'iPhone';
+  }
+  if (/iPad/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) {
+    return 'iPad';
+  }
+  if (/Android/.test(ua)) {
     if (/Mobile/.test(ua)) {
-      os = 'Android Telefon';
-    } else {
-      os = 'Android Tablet';
+      return 'Android Telefon';
     }
-  } else if (/Macintosh|Mac OS X/.test(ua)) {
-    os = 'MacBook / Mac';
-  } else if (/Windows/.test(ua)) {
-    os = 'Windows PC';
-  } else if (/Linux/.test(ua)) {
-    os = 'Linux PC';
+    return 'Android Tablet';
+  }
+  if (/Macintosh|Mac OS X/.test(ua)) {
+    return 'MacBook / Mac';
+  }
+  if (/Windows/.test(ua)) {
+    return 'Windows PC';
+  }
+  if (/Linux/.test(ua)) {
+    return 'Linux PC';
   }
 
-  return browser ? `${os} (${browser})` : os;
+  return 'Eszköz';
 }
