@@ -1,12 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { QrCode, X, Copy, Check } from 'lucide-react';
-import { translations } from '../i18n/translations';
+import { QrCode, X } from 'lucide-react';
 
-export default function QrModal({ lang, onClose }) {
-  const t = translations[lang];
+export default function QrModal({ onClose }) {
   const canvasRef = useRef(null);
-  const [copied, setCopied] = useState(false);
   const currentUrl = window.location.href;
 
   useEffect(() => {
@@ -29,13 +26,6 @@ export default function QrModal({ lang, onClose }) {
     }
   }, [currentUrl]);
 
-  const copyToClipboard = (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(currentUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div
       onClick={onClose}
@@ -49,7 +39,7 @@ export default function QrModal({ lang, onClose }) {
         <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm">
             <QrCode className="w-4 h-4 text-indigo-400" />
-            <span>Oldal Megosztása QR-kóddal</span>
+            <span>Oldal megosztása</span>
           </div>
           <button
             onClick={onClose}
@@ -64,27 +54,9 @@ export default function QrModal({ lang, onClose }) {
           <canvas ref={canvasRef} className="rounded-lg max-w-full" />
         </div>
 
-        <p className="text-xs text-slate-300">
-          Olvasd be ezt a QR-kódot a másik telefon vagy iPad kamerájával a megnyitáshoz!
+        <p className="text-xs text-slate-300 leading-relaxed font-medium">
+          Olvasd be ezt a QR-kódot a másik eszköz kamerájával a megnyitáshoz!
         </p>
-
-        {/* Copy Link Button */}
-        <button
-          onClick={copyToClipboard}
-          className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-white/10 flex items-center justify-center gap-2 transition-all active:scale-95"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-400">{t.linkCopied}</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 text-indigo-400" />
-              <span>Link Másolása</span>
-            </>
-          )}
-        </button>
 
       </div>
     </div>

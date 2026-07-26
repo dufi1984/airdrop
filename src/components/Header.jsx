@@ -6,14 +6,14 @@ export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSetti
     <header className="w-full glass-panel sticky top-0 z-30 border-b border-white/10 px-4 py-3 sm:px-6">
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         
-        {/* Top Left: QR Code Share Button */}
+        {/* Top Left: Share Button */}
         <button
           onClick={onOpenQr}
           className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-white/10 transition-all active:scale-95 flex items-center gap-2 text-xs font-semibold"
-          title="QR-kód megosztás"
+          title="Megosztás"
         >
           <QrCode className="w-4 h-4 text-indigo-400" />
-          <span className="hidden sm:inline">Megosztás QR-rel</span>
+          <span className="hidden sm:inline">Megosztás</span>
         </button>
 
         {/* Top Right: Minimalist Status Badge & Settings Icon */}

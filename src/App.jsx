@@ -125,14 +125,9 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-        <div className="flex items-center gap-1">
-          <span>Airdrop P2P WebApp &bull; Ingyenes nyílt forráskódú szoftver</span>
-          <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-        </div>
-        <p className="text-[11px] text-slate-600">
-          GitHub: <a href="https://github.com/dufi1984/airdrop" target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300">dufi1984/airdrop</a>
-        </p>
+      <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
+        <span>Airdrop &bull; Ingyenes nyílt forráskódú szoftver</span>
+        <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
 
       {/* QR Code Share Modal */}
