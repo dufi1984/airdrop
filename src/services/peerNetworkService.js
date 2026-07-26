@@ -29,6 +29,7 @@ class PeerNetworkService {
     this.receivedBytesMap = new Map();
     this.receiveStartTimes = new Map();
     this.pendingTransferFiles = new Map();
+    this.activeSendCancellations = new Map(); // peerId -> boolean
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -182,6 +183,7 @@ class PeerNetworkService {
     this.receivedBytesMap.delete(peerId);
     this.receiveStartTimes.delete(peerId);
     this.pendingTransferFiles.delete(peerId);
+    this.activeSendCancellations.delete(peerId);
   }
 
   notifyDevicesUpdate() {
@@ -221,7 +223,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Receiver accepted transfer
+        // Receiver accepted transfer -> start streaming!
         if (msg.type === 'accept_transfer') {
           const pending = this.pendingTransferFiles.get(fromPeerId);
           if (pending) {
@@ -231,9 +233,10 @@ class PeerNetworkService {
           return;
         }
 
-        // Receiver rejected transfer
+        // Receiver rejected transfer -> immediately cancel sending!
         if (msg.type === 'reject_transfer') {
           this.pendingTransferFiles.delete(fromPeerId);
+          this.activeSendCancellations.set(fromPeerId, true);
           if (this.onRejected) this.onRejected(fromPeerId);
           return;
         }
@@ -329,6 +332,7 @@ class PeerNetworkService {
     if (!conn || !conn.open) return;
 
     this.pendingTransferFiles.set(targetPeerId, fileList);
+    this.activeSendCancellations.delete(targetPeerId);
 
     // Propose transfer to trigger phone call style modal on receiver device
     conn.send(JSON.stringify({
@@ -350,6 +354,8 @@ class PeerNetworkService {
     if (!conn || !conn.open) return;
 
     for (let i = 0; i < fileList.length; i++) {
+      if (this.activeSendCancellations.get(targetPeerId)) break;
+
       const file = fileList[i];
       await this.sendFileToConn(conn, file, i + 1, fileList.length);
     }
@@ -371,7 +377,7 @@ class PeerNetworkService {
       const reader = new FileReader();
 
       const sendNextChunk = () => {
-        if (offset >= file.size) {
+        if (offset >= file.size || this.activeSendCancellations.get(conn.peer)) {
           conn.send(JSON.stringify({ type: 'end', name: file.name }));
           resolve();
           return;
@@ -382,7 +388,7 @@ class PeerNetworkService {
       };
 
       reader.onload = (e) => {
-        if (!conn || !conn.open) {
+        if (!conn || !conn.open || this.activeSendCancellations.get(conn.peer)) {
           resolve();
           return;
         }
@@ -433,6 +439,7 @@ class PeerNetworkService {
     this.receivedBytesMap.clear();
     this.receiveStartTimes.clear();
     this.pendingTransferFiles.clear();
+    this.activeSendCancellations.clear();
   }
 }
 

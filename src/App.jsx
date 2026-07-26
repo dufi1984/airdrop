@@ -47,7 +47,9 @@ export default function App() {
         setIncomingPrompt(promptInfo);
       },
       (rejectedPeerId) => {
-        setAlertMsg('A fogadó fél elutasította az átvitelt.');
+        // Clear progress bar immediately on rejection!
+        setTransferState(null);
+        setAlertMsg('🔴 A fogadó fél elutasította az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3500);
       }
     );
@@ -82,7 +84,6 @@ export default function App() {
     }
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
     setFilesToSend([]);
-    setTransferState(null);
   };
 
   // Send files to ALL online peers
@@ -94,7 +95,6 @@ export default function App() {
     }
     await peerNetworkService.sendFilesToAll(filesToSend);
     setFilesToSend([]);
-    setTransferState(null);
   };
 
   const handleClearReceived = () => {
@@ -154,7 +154,7 @@ export default function App() {
 
       </main>
 
-      {/* New Requested Footer: Airdrop by Dufi ❤️ */}
+      {/* Footer */}
       <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
         <span>Airdrop by Dufi</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
