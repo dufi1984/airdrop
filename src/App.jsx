@@ -9,7 +9,7 @@ import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
-import { Heart, RotateCw, XCircle } from 'lucide-react';
+import { Heart, RotateCw } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
@@ -20,7 +20,7 @@ export default function App() {
   const [filesToSend, setFilesToSend] = useState([]);
   const [receivedFiles, setReceivedFiles] = useState([]);
   const [transferState, setTransferState] = useState(null);
-  const [pendingSendPeerId, setPendingSendPeerId] = useState(null);
+  const [pendingSendPeers, setPendingSendPeers] = useState(new Set());
 
   const [showSettings, setShowSettings] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -42,7 +42,7 @@ export default function App() {
       (updatedDevices) => setPeerList(updatedDevices),
       (progressData) => {
         setTransferState(progressData);
-        setPendingSendPeerId(null);
+        setPendingSendPeers(new Set());
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
           setTimeout(() => {
             setTransferState(null);
@@ -60,12 +60,15 @@ export default function App() {
       },
       (rejectedPeerId) => {
         setTransferState(null);
-        setPendingSendPeerId(null);
+        setPendingSendPeers((prev) => {
+          const next = new Set(prev);
+          next.delete(rejectedPeerId);
+          return next;
+        });
         setAlertMsg('🔴 A fogadó fél elutasította az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3500);
       },
       (cancelledPeerId) => {
-        // Receiver receives cancellation signal from sender
         setIncomingPrompt(null);
         setAlertMsg('ℹ️ A küldő visszavonta az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3000);
@@ -108,14 +111,16 @@ export default function App() {
     }
   };
 
-  // Sender cancels proposed transfer before receiver accepts
-  const handleCancelProposedSend = () => {
-    if (pendingSendPeerId) {
-      peerNetworkService.cancelProposedSend(pendingSendPeerId);
-      setPendingSendPeerId(null);
-      setAlertMsg('Visszavontad a küldést.');
-      setTimeout(() => setAlertMsg(null), 2500);
-    }
+  // Sender cancels proposed transfer to a specific target peer before receiver accepts
+  const handleCancelProposedSend = (targetPeerId) => {
+    peerNetworkService.cancelProposedSend(targetPeerId);
+    setPendingSendPeers((prev) => {
+      const next = new Set(prev);
+      next.delete(targetPeerId);
+      return next;
+    });
+    setAlertMsg('Visszavontad a küldést.');
+    setTimeout(() => setAlertMsg(null), 2500);
   };
 
   // Send files to specific target peer
@@ -125,7 +130,7 @@ export default function App() {
       setTimeout(() => setAlertMsg(null), 3000);
       return;
     }
-    setPendingSendPeerId(targetPeerId);
+    setPendingSendPeers((prev) => new Set(prev).add(targetPeerId));
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
     setFilesToSend([]);
   };
@@ -137,6 +142,8 @@ export default function App() {
       setTimeout(() => setAlertMsg(null), 3000);
       return;
     }
+    const allPeerIds = peerList.filter((p) => !p.isSelf).map((p) => p.id);
+    setPendingSendPeers(new Set(allPeerIds));
     await peerNetworkService.sendFilesToAll(filesToSend);
     setFilesToSend([]);
   };
@@ -167,20 +174,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Sender Pending Cancellation Banner */}
-        {pendingSendPeerId && !transferState && (
-          <div className="w-full p-4 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-white text-xs font-bold flex items-center justify-between gap-3 animate-pulse">
-            <span>Várakozás a fogadó elfogadására...</span>
-            <button
-              onClick={handleCancelProposedSend}
-              className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>Visszavonás</span>
-            </button>
-          </div>
-        )}
-
         {/* Active Transfer Progress Banner */}
         {transferState && (
           <TransferProgress lang={lang} transferState={transferState} />
@@ -193,14 +186,16 @@ export default function App() {
           setFiles={setFilesToSend}
         />
 
-        {/* 2. Online Devices Vertical List */}
+        {/* 2. Online Devices Vertical List (With per-device status & Visszavonás button) */}
         <OnlineDevices
           lang={lang}
           myId={peerNetworkService.myId}
           peerList={peerList}
           hasFilesSelected={filesToSend.length > 0}
+          pendingSendPeers={pendingSendPeers}
           onSendToPeer={handleSendToPeer}
           onSendToAll={handleSendToAll}
+          onCancelSendToPeer={handleCancelProposedSend}
         />
 
         {/* Explicit Force App Reload Button */}
