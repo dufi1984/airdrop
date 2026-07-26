@@ -5,8 +5,8 @@
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    /* Material Design 3 OLED Deep Dark Canvas (#09090b for Retina OLED battery savings) */
-    background-color: #09090b;
+    /* Pure Deep Dark Charcoal Neutral Gray (#121214 - No ink blue tint) */
+    background-color: #121214;
     color: #f4f4f5;
   }
 }
@@ -16,21 +16,21 @@
   padding-top: max(16px, env(safe-area-inset-top));
 }
 
-/* Material Design 3 Dark Theme Surface Panels (WCAG AA Compliant) */
+/* Material Design 3 Charcoal Neutral Dark Theme Panels */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.92);
+  background: rgba(24, 24, 28, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
 }
 
 .glass-panel-glow {
-  background: rgba(30, 30, 36, 0.95);
+  background: rgba(28, 28, 32, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
 }
 
 /* Smooth custom scrollbars */
@@ -39,7 +39,7 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(18, 18, 18, 0.8);
+  background: rgba(18, 18, 20, 0.8);
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);

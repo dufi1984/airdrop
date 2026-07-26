@@ -24,9 +24,9 @@ export default function OnlineDevices({
   const otherPeers = peerList.filter((p) => !p.isSelf);
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-600/60 shadow-xl">
+    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-600/70 shadow-xl">
       
-      {/* Header Row (Without count) */}
+      {/* Header Row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
@@ -47,7 +47,7 @@ export default function OnlineDevices({
         )}
       </div>
 
-      {/* Online Devices List with High Contrast Borders */}
+      {/* Online Devices List with Uniform Dark Fill & Matching Borders */}
       <div className="flex flex-col gap-3">
         {peerList.map((device) => {
           const isPending = pendingSendPeers && pendingSendPeers.has(device.id);
@@ -56,11 +56,9 @@ export default function OnlineDevices({
             <div
               key={device.id}
               className={`w-full p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-                device.isSelf
-                  ? 'bg-zinc-900/60 border-zinc-600/70 shadow-md'
-                  : isPending
+                isPending
                   ? 'bg-blue-500/20 border-blue-400/80 shadow-lg'
-                  : 'bg-zinc-900/90 border-zinc-500/80 hover:border-blue-400 shadow-lg'
+                  : 'bg-zinc-950/90 border-zinc-600/80 hover:border-blue-400 shadow-md'
               }`}
             >
               {/* Clean Device Info */}
