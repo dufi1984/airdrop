@@ -38,7 +38,17 @@ export default function App() {
     peerNetworkService.init(
       (status) => setIsConnected(status),
       (updatedDevices) => setPeerList(updatedDevices),
-      (progressData) => setTransferState(progressData),
+      (progressData) => {
+        setTransferState(progressData);
+        // Auto-clear sender progress bar when reaching 100%
+        if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
+          setTimeout(() => {
+            setTransferState(null);
+            setAlertMsg('🟢 Sikeres átvitel! A csomag megérkezett.');
+            setTimeout(() => setAlertMsg(null), 4000);
+          }, 1200);
+        }
+      },
       (receivedFileData) => {
         setReceivedFiles((prev) => [receivedFileData, ...prev]);
         setTransferState(null);
@@ -47,7 +57,6 @@ export default function App() {
         setIncomingPrompt(promptInfo);
       },
       (rejectedPeerId) => {
-        // Clear progress bar immediately on rejection!
         setTransferState(null);
         setAlertMsg('🔴 A fogadó fél elutasította az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3500);
@@ -118,7 +127,7 @@ export default function App() {
         
         {/* Warning Toast */}
         {alertMsg && (
-          <div className="w-full p-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold text-center animate-bounce">
+          <div className="w-full p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
             {alertMsg}
           </div>
         )}
