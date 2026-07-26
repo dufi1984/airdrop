@@ -24,14 +24,14 @@ export default function OnlineDevices({
   const otherPeers = peerList.filter((p) => !p.isSelf);
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-700/60">
+    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-600/60 shadow-xl">
       
-      {/* Header Row */}
+      {/* Header Row (Without count) */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
           <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
-            {t.onlineDevicesTitle} ({peerList.length})
+            {t.onlineDevicesTitle}
           </h3>
         </div>
 
@@ -47,7 +47,7 @@ export default function OnlineDevices({
         )}
       </div>
 
-      {/* Online Devices List */}
+      {/* Online Devices List with High Contrast Borders */}
       <div className="flex flex-col gap-3">
         {peerList.map((device) => {
           const isPending = pendingSendPeers && pendingSendPeers.has(device.id);
@@ -57,15 +57,15 @@ export default function OnlineDevices({
               key={device.id}
               className={`w-full p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                 device.isSelf
-                  ? 'bg-zinc-900/40 border-white/5 opacity-80'
+                  ? 'bg-zinc-900/60 border-zinc-600/70 shadow-md'
                   : isPending
-                  ? 'bg-blue-500/20 border-blue-500/60 shadow-lg'
-                  : 'bg-zinc-900/90 border-zinc-700/60 hover:border-blue-400/60 shadow-md'
+                  ? 'bg-blue-500/20 border-blue-400/80 shadow-lg'
+                  : 'bg-zinc-900/90 border-zinc-500/80 hover:border-blue-400 shadow-lg'
               }`}
             >
               {/* Clean Device Info */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 shrink-0">
+                <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-400/40 shrink-0">
                   {getDeviceIcon(device.deviceInfo)}
                 </div>
                 <div className="flex items-center gap-2.5 truncate">
@@ -73,7 +73,7 @@ export default function OnlineDevices({
                     {device.deviceInfo}
                   </p>
                   {device.isSelf && (
-                    <span className="text-[10px] bg-blue-500/20 text-blue-300 font-extrabold px-2 py-0.5 rounded-md border border-blue-500/40 shrink-0">
+                    <span className="text-[10px] bg-blue-500/25 text-blue-300 font-extrabold px-2 py-0.5 rounded-md border border-blue-400/50 shrink-0">
                       {t.thisDevice}
                     </span>
                   )}
@@ -82,20 +82,20 @@ export default function OnlineDevices({
 
               {/* Status / Action Buttons */}
               {device.isSelf ? (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-emerald-500/15 px-3 py-1.5 rounded-xl border border-emerald-500/30 self-end sm:self-center">
+                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-400/50 self-end sm:self-center shadow-sm">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{t.readyForReceiving}</span>
                 </div>
               ) : isPending ? (
                 /* Pending Approval state */
                 <div className="flex items-center gap-2 self-end sm:self-center">
-                  <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-500/40 animate-pulse">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-400/50 animate-pulse">
                     <Clock className="w-4 h-4 text-amber-400" />
                     <span>Várakozás elfogadásra...</span>
                   </div>
                   <button
                     onClick={() => onCancelSendToPeer(device.id)}
-                    className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1 transition-all active:scale-95 shadow-md border border-rose-400/40"
+                    className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1 transition-all active:scale-95 shadow-md border border-rose-400/50"
                     title="Visszavonás erről az eszközről"
                   >
                     <XCircle className="w-4 h-4" />
@@ -108,8 +108,8 @@ export default function OnlineDevices({
                   onClick={() => onSendToPeer(device.id)}
                   className={`w-full sm:w-auto py-2.5 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md border ${
                     hasFilesSelected
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-blue-400/50 hover:opacity-95 shadow-blue-500/20 animate-pulse'
-                      : 'bg-zinc-800 text-zinc-300 border-white/15 hover:text-white hover:bg-zinc-700'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-blue-400/60 hover:opacity-95 shadow-blue-500/30 animate-pulse'
+                      : 'bg-zinc-800 text-zinc-200 border-zinc-600/80 hover:text-white hover:bg-zinc-700'
                   }`}
                 >
                   <Send className="w-4 h-4" />
@@ -120,12 +120,6 @@ export default function OnlineDevices({
             </div>
           );
         })}
-
-        {otherPeers.length === 0 && (
-          <p className="text-xs text-zinc-400 text-center py-2 italic">
-            {t.noOtherDevices}
-          </p>
-        )}
       </div>
 
     </div>
