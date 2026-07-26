@@ -23,6 +23,11 @@ export function formatTime(seconds) {
   return `${s}s`;
 }
 
+// Export formatEta alias for TransferProgress component
+export function formatEta(seconds) {
+  return formatTime(seconds);
+}
+
 // Automatic device and browser detection based on factory browser navigator API
 export function detectDeviceName() {
   const ua = navigator.userAgent;
