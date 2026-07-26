@@ -1,4 +1,4 @@
-# ⚡ Airdrop P2P WebApp (`dufi1984/airdrop`)
+# Airdrop WebApp (`dufi1984/airdrop`)
 
 Egy böngészőből futó, **0 telepítést és 0 regisztrációt igénylő** P2P fájlküldő és képmegosztó webalkalmazás iOS (Safari) és Android (Chrome) okostelefonokra, iPad-re és asztali számítógépekre.
 
