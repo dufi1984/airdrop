@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowDownCircle, CheckCircle2, XCircle, Package, Maximize2, Minimize2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Package, Maximize2, Minimize2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onReject }) {
@@ -12,16 +12,16 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg animate-fade-in">
-      <div className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-emerald-500/50 shadow-2xl relative max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-indigo-500/40 shadow-2xl relative max-h-[90vh] overflow-hidden">
         
-        {/* Animated Incoming Call Icon */}
-        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-emerald-500/30 to-teal-400/20 border-2 border-emerald-400/60 flex items-center justify-center animate-pulse shadow-xl shadow-emerald-500/30 shrink-0">
-          <ArrowDownCircle className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400 animate-bounce" />
+        {/* Top Icon: Clean Indigo Line Box Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-indigo-500/15 border border-indigo-400/40 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+          <Package className="w-8 h-8 text-indigo-400" />
         </div>
 
-        {/* Header Title */}
+        {/* Title (Without small text underneath) */}
         <div className="flex flex-col gap-1 shrink-0">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">
+          <span className="text-xs font-extrabold uppercase tracking-widest text-indigo-400">
             Bejövő Átvitel
           </span>
           <h2 className="text-lg sm:text-xl font-black text-white">
@@ -29,49 +29,48 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
           </h2>
         </div>
 
-        {/* Middle Tappable / Expandable Item Count Box */}
+        {/* Entire Middle Box is Clickable */}
         <div
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/40 hover:border-indigo-400 cursor-pointer flex flex-col gap-2.5 transition-all shadow-md active:scale-[0.99] select-none"
+          className="w-full min-h-[64px] p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/30 hover:border-indigo-400 cursor-pointer flex flex-col justify-center gap-3 transition-all shadow-md active:scale-[0.99] select-none relative"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+          {/* Top/Main Row */}
+          <div className="flex items-center justify-between w-full my-auto">
+            <div className="flex items-center gap-3">
               <Package className="w-5 h-5 text-indigo-400 shrink-0" />
               <p className="text-sm font-extrabold text-white">
                 📦 {totalFiles || 1} elem érkezik
               </p>
             </div>
-            <div className="flex items-center gap-1 text-[11px] text-indigo-300 font-bold bg-indigo-500/20 px-2 py-1 rounded-lg border border-indigo-500/30">
+
+            {/* Subtle Expand/Collapse Text Indicator on Top Right */}
+            <div className="flex items-center gap-2 text-slate-400 hover:text-indigo-300 text-[11px] font-medium transition-colors">
               {isExpanded ? (
                 <>
                   <span>Összecsukás</span>
-                  <Minimize2 className="w-3.5 h-3.5" />
+                  <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
                 </>
               ) : (
                 <>
                   <span>Kibontás</span>
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
                 </>
               )}
             </div>
           </div>
 
-          {/* Item details (Single or Expandable Max 4-5 Items Scrollable) */}
-          {isExpanded ? (
-            <div className="w-full max-h-36 overflow-y-auto pt-2 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300">
-              <div className="p-2 rounded-xl bg-slate-800/80 border border-white/5 truncate font-medium">
+          {/* Expanded Content View */}
+          {isExpanded && (
+            <div className="w-full max-h-36 overflow-y-auto pt-3 border-t border-white/10 flex flex-col gap-1.5 text-left text-xs text-slate-300">
+              <div className="p-2.5 rounded-xl bg-slate-800/80 border border-white/5 truncate font-medium">
                 📄 {fileName}
               </div>
               {totalFiles > 1 && (
                 <p className="text-[11px] text-slate-400 italic px-1">
-                  ...és további {totalFiles - 1} fájl szerepel a csomagban.
+                  ...és további {totalFiles - 1} fájl a csomagban.
                 </p>
               )}
             </div>
-          ) : (
-            <p className="text-[11px] text-slate-400 truncate text-left">
-              {fileName}
-            </p>
           )}
         </div>
 
