@@ -1,13 +1,17 @@
-import React from 'react';
-import { Settings, X, Globe, Save } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, X, Globe, Copy, Check, Server } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 export default function ServerConfigModal({ lang, setLang, onClose }) {
   const t = translations[lang];
+  const [copied, setCopied] = useState(false);
+  const signalingUrl = 'https://0.peerjs.com (Auto P2P Cloud)';
 
-  const handleSave = (e) => {
+  const handleCopyUrl = (e) => {
     e.preventDefault();
-    onClose();
+    navigator.clipboard.writeText(signalingUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -37,7 +41,7 @@ export default function ServerConfigModal({ lang, setLang, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5">
           
           {/* Language Selector Section */}
           <div className="flex flex-col gap-2">
@@ -71,16 +75,43 @@ export default function ServerConfigModal({ lang, setLang, onClose }) {
             </div>
           </div>
 
-          {/* Save Button */}
-          <button
-            type="submit"
-            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:opacity-95 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all active:scale-95 mt-2"
-          >
-            <Save className="w-4 h-4" />
-            <span>{t.saveSettings}</span>
-          </button>
+          {/* Read-Only Signaling Server URL Section with Copy Button */}
+          <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+            <label className="text-xs font-bold text-slate-300 flex items-center gap-2">
+              <Server className="w-4 h-4 text-indigo-400" />
+              <span>Signaling Szerver Hálózat</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={signalingUrl}
+                className="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-indigo-500/20 text-slate-300 text-xs font-mono read-only:cursor-not-allowed select-all"
+              />
+              <button
+                onClick={handleCopyUrl}
+                className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all active:scale-95"
+                title="Másolás vágólapra"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-400 text-[11px]">Másolva!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-indigo-400" />
+                    <span className="text-[11px]">Másolás</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Automatikus 100% ingyenes felhős P2P hálózat. Nem szükséges módosítani.
+            </p>
+          </div>
 
-        </form>
+        </div>
 
       </div>
     </div>
