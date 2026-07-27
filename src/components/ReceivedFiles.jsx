@@ -21,12 +21,28 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     return Array.from(map.values());
   }, [receivedFiles]);
 
-  // Bulletproof Multi-File Save/Download for Android, iOS & Desktop PC
+  // Clean Save/Download Handler
   const handleSaveOrDownloadAll = async () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
 
-    // Trigger direct programmatic download for ALL files with 350ms delays
-    // This guarantees every single photo/video is saved to disk on Android & PC
+    const fileList = uniqueReceivedFiles.map((item) => item.file);
+
+    // 1. On Mobile (iPhone / Android): ONLY open the native bottom Share Panel (No 'Elindítja az új letöltést' dialog!)
+    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
+      try {
+        await navigator.share({
+          files: fileList,
+          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
+          text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
+        });
+        return;
+      } catch (err) {
+        console.log('User dismissed native share panel:', err);
+        return;
+      }
+    }
+
+    // 2. On Desktop PC: Direct file download loop into Downloads folder
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -37,31 +53,13 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         document.body.removeChild(link);
       }, index * 350);
     });
-
-    // On iOS Safari mobile, also offer Web Share API sheet if available
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS && navigator.share && navigator.canShare) {
-      const fileList = uniqueReceivedFiles.map((item) => item.file);
-      if (navigator.canShare({ files: fileList })) {
-        try {
-          await navigator.share({
-            files: fileList,
-            title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-            text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
-          });
-        } catch (err) {
-          console.log('User dismissed Web Share API:', err);
-        }
-      }
-    }
   };
 
-  // Auto-scroll and trigger batch download ONCE per unique batch completion
+  // Auto-scroll and trigger batch download ONCE on PC only
   useEffect(() => {
     if (uniqueReceivedFiles.length > 0 && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-      // Create a unique batch identifier based on file names
       const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
       
       if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
@@ -134,7 +132,9 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
-          Koppints az alábbi gombra mind a ({uniqueReceivedFiles.length}) fájl hiánytalan mentéséhez a Galériádba/Letöltések közé!
+          {isMobile
+            ? 'Koppints a gombra, majd a felugró menüben válaszd a "Képek mentése" opciót!'
+            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
         </span>
       </p>
 
@@ -145,7 +145,9 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       >
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
-          Mentés mindet ({uniqueReceivedFiles.length})
+          {isMobile
+            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
+            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
         </span>
       </button>
 
@@ -160,7 +162,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
-      {/* Collapsible Thumbnails with Individual Download Buttons */}
+      {/* Collapsible Thumbnails */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -179,16 +181,6 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
                   </p>
                 </div>
               </div>
-
-              {/* Individual Single File Download Trigger */}
-              <a
-                href={item.blobUrl}
-                download={item.name}
-                className="p-2 rounded-xl bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 transition-all shrink-0"
-                title="Fájl mentése külön"
-              >
-                <Download className="w-4 h-4" />
-              </a>
             </div>
           ))}
         </div>
