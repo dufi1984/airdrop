@@ -132,6 +132,22 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     );
   };
 
+  const getSaveButtonText = () => {
+    if (isMobile) {
+      return uniqueReceivedFiles.length > 1 ? 'Képek mentése' : 'Kép mentése';
+    }
+    return uniqueReceivedFiles.length > 1
+      ? `Minden letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
+      : 'Fájl letöltése a gépre';
+  };
+
+  const getToggleText = () => {
+    if (isExpanded) {
+      return 'Képek elrejtése';
+    }
+    return `Képek megtekintése (${uniqueReceivedFiles.length}/${totalExpectedFiles})`;
+  };
+
   return (
     <div ref={containerRef} className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/50 shadow-2xl animate-fade-in">
       
@@ -151,7 +167,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
                 {t.receivedPackageTitle}
               </h3>
               <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-400">
-                ({uniqueReceivedFiles.length}/{totalExpectedFiles})
+                ({uniqueReceivedFiles.length}/${totalExpectedFiles})
               </span>
             </div>
             <p className="text-xs text-emerald-300 font-medium">
@@ -179,11 +195,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 cursor-pointer"
       >
         <Download className="w-5 h-5 text-white" />
-        <span>
-          {isMobile
-            ? `Mentés mindet a galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
-            : `Minden letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`}
-        </span>
+        <span>{getSaveButtonText()}</span>
       </button>
 
       {/* Collapsible Gallery Toggle */}
@@ -192,7 +204,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
         >
-          <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({uniqueReceivedFiles.length}/{totalExpectedFiles})</span>
+          <span>{getToggleText()}</span>
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
