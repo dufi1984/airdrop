@@ -80,27 +80,25 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Ultra Compact Drag & Drop Zone */}
+      {/* Drop Zone Box (Desktop: Top Drag Zone, Mobile: Bottom Thumb Zone) */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-3 px-4 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
+        className={`w-full py-4 px-4 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
           isDragging
             ? 'border-blue-400 bg-blue-500/10'
             : 'border-zinc-700 bg-zinc-950/80 hover:border-blue-500 hover:bg-zinc-950'
         }`}
       >
-        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-          <FolderSearch className="w-4.5 h-4.5 text-blue-400" />
+        <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+          <FolderSearch className="w-5 h-5 text-blue-400" />
         </div>
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold text-zinc-100 tracking-normal">
-            Tallózás
-          </h3>
-          <span className="text-xs text-zinc-400 font-normal">
-            — {t.dragDropText}
+        <div className="text-xs sm:text-sm text-zinc-300 font-normal">
+          <span>{t.dragDropText}</span>
+          <span className="text-blue-400 font-bold underline underline-offset-2">
+            tallózz
           </span>
         </div>
       </div>
@@ -147,7 +145,7 @@ export default function FilePicker({ lang, files, setFiles }) {
           {/* Guidance Banner */}
           <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-medium">
             <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
-            <span>Koppints az alábbi Online Eszköz kártyára a küldés elindításához!</span>
+            <span>Koppints az Online Eszköz kártyára a küldés elindításához!</span>
           </div>
         </div>
       )}

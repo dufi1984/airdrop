@@ -169,7 +169,7 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Main Ultra-Compact Container */}
+      {/* Main Container with Responsive Ergonomic Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
         
         {/* Warning Toast */}
@@ -179,37 +179,45 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. File Selector Component (Ultra Compact) */}
-        <FilePicker
-          lang={lang}
-          files={filesToSend}
-          setFiles={setFilesToSend}
-        />
-
-        {/* 2. Online Devices Vertical List */}
-        <OnlineDevices
-          lang={lang}
-          myId={peerNetworkService.myId}
-          peerList={peerList}
-          hasFilesSelected={filesToSend.length > 0}
-          pendingSendPeers={pendingSendPeers}
-          onSendToPeer={handleSendToPeer}
-          onSendToAll={handleSendToAll}
-          onCancelSendToPeer={handleCancelProposedSend}
-        />
+        {/* 1. Online Devices Component (Top on Mobile order-1, Below FilePicker on Desktop sm:order-2) */}
+        <div className="order-1 sm:order-2">
+          <OnlineDevices
+            lang={lang}
+            myId={peerNetworkService.myId}
+            peerList={peerList}
+            hasFilesSelected={filesToSend.length > 0}
+            pendingSendPeers={pendingSendPeers}
+            onSendToPeer={handleSendToPeer}
+            onSendToAll={handleSendToAll}
+            onCancelSendToPeer={handleCancelProposedSend}
+          />
+        </div>
 
         {/* Active Transfer Progress Banner */}
         {transferState && (
-          <TransferProgress lang={lang} transferState={transferState} />
+          <div className="order-2 sm:order-3">
+            <TransferProgress lang={lang} transferState={transferState} />
+          </div>
         )}
 
         {/* 3. Received Grouped Package Section */}
-        <ReceivedFiles
-          lang={lang}
-          receivedFiles={receivedFiles}
-          transferState={transferState}
-          onClearReceived={handleClearReceived}
-        />
+        <div className="order-3 sm:order-4">
+          <ReceivedFiles
+            lang={lang}
+            receivedFiles={receivedFiles}
+            transferState={transferState}
+            onClearReceived={handleClearReceived}
+          />
+        </div>
+
+        {/* 4. File Selector Component (Bottom Thumb Zone on Mobile order-4, Top on Desktop sm:order-1) */}
+        <div className="order-4 sm:order-1">
+          <FilePicker
+            lang={lang}
+            files={filesToSend}
+            setFiles={setFilesToSend}
+          />
+        </div>
 
       </main>
 
