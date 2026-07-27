@@ -12,6 +12,18 @@
   }
 }
 
+/* Disable touch text selection & long-press callout menus on Touch Devices ONLY (Smartphones, Tablets) */
+@media (hover: none) and (pointer: coarse) {
+  *, *::before, *::after {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
