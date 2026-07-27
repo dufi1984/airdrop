@@ -145,7 +145,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     if (isExpanded) {
       return 'Képek elrejtése';
     }
-    return `Képek megtekintése (${uniqueReceivedFiles.length}/${totalExpectedFiles})`;
+    return `Képek megtekintése (${uniqueReceivedFiles.length})`;
   };
 
   return (
@@ -198,14 +198,14 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         <span>{getSaveButtonText()}</span>
       </button>
 
-      {/* Collapsible Gallery Toggle */}
-      <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
+      {/* Collapsible Gallery Toggle (Larger spacing & spacious 44px+ touch target) */}
+      <div className="w-full pt-3 border-t border-zinc-800/80">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
+          className="w-full py-2.5 px-3 rounded-xl bg-zinc-950/40 hover:bg-zinc-800/60 text-zinc-300 hover:text-white flex items-center justify-between transition-all cursor-pointer min-h-[44px] active:scale-[0.99]"
         >
-          <span>{getToggleText()}</span>
-          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <span className="text-xs sm:text-sm font-bold">{getToggleText()}</span>
+          {isExpanded ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
         </button>
       </div>
 
