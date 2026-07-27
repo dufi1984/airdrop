@@ -63,13 +63,13 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-6 border border-zinc-700/60 transition-all">
       
-      {/* Photo & Video Gallery Input for Direct Mobile Picker */}
+      {/* Optimized input tag for direct Android & iOS Photo/Video Gallery launch */}
       <input
         type="file"
         ref={inputRef}
         onChange={handleFileChange}
         multiple
-        accept="image/*,video/*"
+        accept="image/*,video/*,.heic,.heif,.mov,.mp4,.m4v,.zip,.pdf,.doc,.docx"
         className="hidden"
       />
 
