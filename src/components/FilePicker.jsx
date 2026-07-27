@@ -99,12 +99,12 @@ export default function FilePicker({ lang, files, setFiles }) {
         <h3 className="text-lg sm:text-xl font-black text-zinc-100 mb-1 tracking-wide">
           Tallózás
         </h3>
-        <p className="text-xs sm:text-sm text-zinc-400">
-          Húzd ide a fájlokat, vagy kattints ide a megnyitáshoz
+        <p className="text-xs sm:text-sm text-zinc-400 font-medium">
+          {t.dragDropText}
         </p>
       </div>
 
-      {/* Selected Files Queue */}
+      {/* Selected Files Queue (~3.5 items visible so 4th item is partially visible) */}
       {files.length > 0 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -113,18 +113,18 @@ export default function FilePicker({ lang, files, setFiles }) {
             </span>
             <button
               onClick={clearAll}
-              className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 font-medium transition-colors"
+              className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {t.clearQueue}
             </button>
           </div>
 
-          <div className="max-h-48 overflow-y-auto pr-1 flex flex-col gap-2">
+          <div className="max-h-64 sm:max-h-72 overflow-y-auto pr-1 flex flex-col gap-2.5">
             {files.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/90 border border-white/10 text-xs text-zinc-200"
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs text-zinc-200 shadow-md shrink-0"
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
                   {getFileIcon(file)}
@@ -135,7 +135,7 @@ export default function FilePicker({ lang, files, setFiles }) {
                 </div>
                 <button
                   onClick={() => removeFile(idx)}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition-colors"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

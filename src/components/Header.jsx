@@ -1,50 +1,78 @@
 import React from 'react';
-import { Settings, CheckCircle2, AlertTriangle, QrCode } from 'lucide-react';
+import { Wifi, AlertTriangle, CheckCircle2, QrCode, Settings, RotateCw } from 'lucide-react';
+import { translations } from '../i18n/translations';
 
-export default function Header({ isConnected, onlineCount, onOpenQr, onOpenSettings }) {
+export default function Header({ lang, isConnected, onlineCount, onOpenQr, onOpenSettings, onForceReload, isRefreshing }) {
+  const t = translations[lang];
+
   return (
-    <header className="w-full glass-panel sticky top-0 z-30 border-b border-white/10 px-4 safe-top-padding pb-3">
-      <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <header className="w-full border-b border-white/10 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40">
+      <div className="max-w-4xl mx-auto px-4 py-3.5 sm:px-6 flex items-center justify-between">
         
-        {/* Top Left: Share Button (Material Blue Accent) */}
-        <button
-          onClick={onOpenQr}
-          className="p-2.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-100 border border-white/15 transition-all active:scale-95 flex items-center gap-2 text-xs font-semibold shadow-md"
-          title="Megosztás"
-        >
-          <QrCode className="w-4 h-4 text-blue-400" />
-          <span className="hidden sm:inline">Megosztás</span>
-        </button>
+        {/* App Title & Subtitle */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 border border-blue-400/30">
+            <Wifi className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-zinc-100 flex items-center gap-2">
+              {t.appTitle}
+            </h1>
+            <p className="text-[11px] sm:text-xs text-zinc-400 font-medium hidden sm:block">
+              {t.appSubtitle}
+            </p>
+          </div>
+        </div>
 
-        {/* Top Right: Status Badge & Settings Icon */}
-        <div className="flex items-center gap-2.5">
+        {/* Action Controls: Status Badge -> QR -> Refresh -> Settings */}
+        <div className="flex items-center gap-2">
           
-          {/* Status Badge: Circle Checkmark (Green if OK) or Triangle Exclamation (Yellow if Connecting) */}
+          {/* Status Badge */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all ${
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
               isConnected
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
             }`}
-            title={isConnected ? `Csatlakozva (Online: ${onlineCount})` : 'Kapcsolódás...'}
           >
             {isConnected ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="hidden xs:inline">Aktív</span>
+              </>
             ) : (
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <>
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-bounce" />
+                <span className="hidden xs:inline">Kapcsolódás...</span>
+              </>
             )}
-            <span className={`text-[11px] font-mono ${isConnected ? 'text-emerald-200' : 'text-amber-200'}`}>
-              ({onlineCount})
-            </span>
           </div>
 
-          {/* Settings Button */}
+          {/* QR Code Button (Icon only) */}
+          <button
+            onClick={onOpenQr}
+            className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 transition-all active:scale-95 shadow-md cursor-pointer"
+            title="QR-kód megosztása"
+          >
+            <QrCode className="w-4.5 h-4.5 text-blue-400" />
+          </button>
+
+          {/* App Refresh Button (Icon only) */}
+          <button
+            onClick={onForceReload}
+            className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-blue-300 border border-white/10 transition-all active:scale-95 shadow-md cursor-pointer"
+            title="App frissítése"
+          >
+            <RotateCw className={`w-4.5 h-4.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* Settings Button (Icon only) */}
           <button
             onClick={onOpenSettings}
-            className="p-2.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-100 border border-white/15 transition-all active:scale-95 shadow-md"
-            title="Beállítások"
+            className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 transition-all active:scale-95 shadow-md cursor-pointer"
+            title={t.serverConfig}
           >
-            <Settings className="w-4 h-4 text-blue-400" />
+            <Settings className="w-4.5 h-4.5 text-zinc-400" />
           </button>
 
         </div>

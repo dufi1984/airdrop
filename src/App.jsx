@@ -9,7 +9,7 @@ import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
-import { Heart, RotateCw } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
@@ -167,13 +167,15 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-blue-500 selection:text-white">
       
-      {/* Header Bar */}
+      {/* Header Bar with Action Button Row: Status -> QR -> Refresh -> Settings */}
       <Header
         lang={lang}
         isConnected={isConnected}
         onlineCount={peerList.length}
         onOpenQr={() => setShowQrModal(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onForceReload={handleForceAppReload}
+        isRefreshing={isRefreshing}
       />
 
       {/* Main Container */}
@@ -217,18 +219,6 @@ export default function App() {
           transferState={transferState}
           onClearReceived={handleClearReceived}
         />
-
-        {/* Clean In-Place Force App Reload Button (Positioned at the very bottom above footer!) */}
-        <div className="w-full flex justify-center pt-2 pb-4">
-          <button
-            onClick={handleForceAppReload}
-            className="py-2.5 px-4 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-blue-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
-            title="Oldal frissítése"
-          >
-            <RotateCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>App frissítése</span>
-          </button>
-        </div>
 
       </main>
 
