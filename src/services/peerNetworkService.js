@@ -31,8 +31,6 @@ class PeerNetworkService {
     this.receiveStartTimes = new Map();
     this.pendingTransferFiles = new Map();
     this.activeSendCancellations = new Map();
-    this.handledTransferIds = new Set();
-    this.cancelledPeersShield = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -205,14 +203,12 @@ class PeerNetworkService {
       this.notifyDevicesUpdate();
     };
 
-    // Attach open handler immediately or execute if already open
     if (conn.open) {
       handleOpen();
     } else {
       conn.on('open', handleOpen);
     }
 
-    // Always attach data, close, and error listeners immediately
     conn.on('data', (data) => {
       this.handleIncomingData(conn.peer, data);
     });
@@ -254,7 +250,7 @@ class PeerNetworkService {
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
 
-  // Handle WebRTC DataChannel message parser
+  // Handle WebRTC DataChannel message parser (Clean, Pure, Unblocked)
   handleIncomingData(fromPeerId, data) {
     if (typeof data === 'string') {
       try {
@@ -272,15 +268,8 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header (with deduplication & cancellation shield guard)
+        // Sender proposed transfer header -> Trigger prompt immediately!
         if (msg.type === 'propose_transfer') {
-          if (this.cancelledPeersShield.get(fromPeerId)) return;
-
-          const transferKey = `${fromPeerId}_${msg.transferId}`;
-          if (this.handledTransferIds.has(transferKey)) return;
-          this.handledTransferIds.add(transferKey);
-          setTimeout(() => this.handledTransferIds.delete(transferKey), 10000);
-
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
@@ -296,11 +285,8 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer before receiver accepts
+        // Sender cancelled proposed transfer -> Unmount prompt immediately!
         if (msg.type === 'cancel_proposed_transfer') {
-          this.cancelledPeersShield.set(fromPeerId, true);
-          setTimeout(() => this.cancelledPeersShield.delete(fromPeerId), 4000);
-
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
         }
@@ -315,7 +301,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Receiver rejected transfer -> immediately cancel sending!
+        // Receiver rejected transfer -> cancel sending!
         if (msg.type === 'reject_transfer') {
           this.pendingTransferFiles.delete(fromPeerId);
           this.activeSendCancellations.set(fromPeerId, true);
@@ -377,7 +363,7 @@ class PeerNetworkService {
       const speed = elapsed > 0 ? currentBytes / elapsed : 0;
       const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((offset / header.size) * 100));
+      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
@@ -410,40 +396,24 @@ class PeerNetworkService {
     }
   }
 
-  // Cancel proposed transfer before receiver accepts with 3x send guarantee
-  async cancelProposedSend(targetPeerId) {
+  // Cancel proposed transfer (Clean, Instant, Single payload)
+  cancelProposedSend(targetPeerId) {
     this.pendingTransferFiles.delete(targetPeerId);
     this.activeSendCancellations.set(targetPeerId, true);
 
-    for (let i = 0; i < 3; i++) {
-      const conn = this.connections.get(targetPeerId);
-      if (conn && conn.open) {
-        try {
-          conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
-        } catch (e) {}
-      }
-      await new Promise((r) => setTimeout(r, 100));
+    const conn = this.connections.get(targetPeerId);
+    if (conn && conn.open) {
+      try {
+        conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
+      } catch (e) {}
     }
   }
 
-  // Propose transfer to target peer with 3x retry delivery guarantee
-  async sendFilesToPeer(targetPeerId, fileList) {
-    let conn = this.connections.get(targetPeerId);
-    
-    // If no connection exists or connection is not fully open, attempt connection & await open
+  // Propose transfer to target peer (Clean, Instant, Single payload)
+  sendFilesToPeer(targetPeerId, fileList) {
+    const conn = this.connections.get(targetPeerId);
     if (!conn || !conn.open) {
-      this.connectToSlot(targetPeerId);
-      
-      // Wait up to 2.5 seconds for connection channel to open cleanly
-      for (let attempt = 0; attempt < 25; attempt++) {
-        await new Promise((r) => setTimeout(r, 100));
-        conn = this.connections.get(targetPeerId);
-        if (conn && conn.open) break;
-      }
-    }
-
-    if (!conn || !conn.open) {
-      console.warn('Unable to connect to target peer:', targetPeerId);
+      console.warn('Connection not open to target peer:', targetPeerId);
       if (this.onRejected) this.onRejected(targetPeerId);
       return;
     }
@@ -451,31 +421,23 @@ class PeerNetworkService {
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    const transferId = Date.now();
-
-    // Send proposed transfer payload 3 times with 200ms interval to guarantee delivery
-    for (let i = 0; i < 3; i++) {
-      if (this.activeSendCancellations.get(targetPeerId)) break;
-      const currentConn = this.connections.get(targetPeerId);
-      if (currentConn && currentConn.open) {
-        try {
-          currentConn.send(JSON.stringify({
-            type: 'propose_transfer',
-            transferId,
-            totalFiles: fileList.length,
-            fileName: fileList[0]?.name || 'Fájl',
-            fileNames: Array.from(fileList).map((f) => f.name)
-          }));
-        } catch (err) {}
-      }
-      await new Promise((r) => setTimeout(r, 200));
+    try {
+      conn.send(JSON.stringify({
+        type: 'propose_transfer',
+        transferId: Date.now(),
+        totalFiles: fileList.length,
+        fileName: fileList[0]?.name || 'Fájl',
+        fileNames: Array.from(fileList).map((f) => f.name)
+      }));
+    } catch (err) {
+      console.error('Error sending propose_transfer:', err);
     }
   }
 
-  async sendFilesToAll(fileList) {
+  sendFilesToAll(fileList) {
     const activePeers = Array.from(this.connections.keys());
     for (const peerId of activePeers) {
-      await this.sendFilesToPeer(peerId, fileList);
+      this.sendFilesToPeer(peerId, fileList);
     }
   }
 
@@ -570,8 +532,6 @@ class PeerNetworkService {
     this.receiveStartTimes.clear();
     this.pendingTransferFiles.clear();
     this.activeSendCancellations.clear();
-    this.handledTransferIds.clear();
-    this.cancelledPeersShield.clear();
   }
 }
 
