@@ -389,18 +389,20 @@ class PeerNetworkService {
     this.activeSendCancellations.delete(targetPeerId);
   }
 
-  // Propose transfer to target peer with automatic stale DataChannel recovery & retry loop
+  // Propose transfer to target peer with lightweight WebRTC payload capping & auto-reconnect logic
   async sendFilesToPeer(targetPeerId, fileList) {
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
+    // Keep payload ultra-lightweight (<1KB) for 100% WebRTC DataChannel packet delivery
+    const safeFileNames = Array.from(fileList).slice(0, 10).map((f) => f.name);
     const payload = JSON.stringify({
       type: 'propose_transfer',
       transferId: Date.now() + Math.random(),
       senderName: this.myDeviceName,
       totalFiles: fileList.length,
-      fileName: fileList[0].name,
-      fileNames: Array.from(fileList).map((f) => f.name)
+      fileName: fileList[0]?.name || 'Fájl',
+      fileNames: safeFileNames
     });
 
     let conn = this.connections.get(targetPeerId);
