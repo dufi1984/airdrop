@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { QrCode, X } from 'lucide-react';
+import { X, Copy, Check } from 'lucide-react';
 
 export default function QrModal({ onClose }) {
   const canvasRef = useRef(null);
+  const [copied, setCopied] = useState(false);
   const currentUrl = window.location.href;
 
   useEffect(() => {
@@ -12,10 +13,10 @@ export default function QrModal({ onClose }) {
         canvasRef.current,
         currentUrl,
         {
-          width: 220,
-          margin: 2,
+          width: 190,
+          margin: 1,
           color: {
-            dark: '#0f172a',
+            dark: '#121214',
             light: '#ffffff',
           },
         },
@@ -26,37 +27,57 @@ export default function QrModal({ onClose }) {
     }
   }, [currentUrl]);
 
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(currentUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm glass-panel-glow rounded-3xl p-6 flex flex-col items-center text-center gap-5 border border-indigo-500/40 shadow-2xl relative cursor-default"
+        className="w-full max-w-[280px] bg-zinc-900/95 rounded-2xl p-5 flex flex-col items-center text-center gap-4 border border-zinc-800 shadow-2xl relative cursor-default"
       >
         {/* Header */}
         <div className="w-full flex items-center justify-between">
-          <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm">
-            <QrCode className="w-4 h-4 text-indigo-400" />
-            <span>Oldal megosztása</span>
-          </div>
+          <h3 className="text-sm font-bold text-zinc-100 tracking-tight">
+            QR-kód
+          </h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            title="Bezárás"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* QR Code Container */}
-        <div className="p-3 bg-white rounded-2xl shadow-xl border-4 border-indigo-500/30">
-          <canvas ref={canvasRef} className="rounded-lg max-w-full" />
+        {/* Ultra Clean QR Code Container */}
+        <div className="p-2.5 bg-white rounded-xl shadow-md border border-zinc-700">
+          <canvas ref={canvasRef} className="rounded-lg block" />
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed font-medium">
-          Olvasd be ezt a QR-kódot a másik eszköz kamerájával a megnyitáshoz!
-        </p>
+        {/* Clean Copy URL Action Button */}
+        <button
+          onClick={handleCopyLink}
+          className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-emerald-400">Kimásolva!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5 text-blue-400" />
+              <span>URL másolása</span>
+            </>
+          )}
+        </button>
 
       </div>
     </div>
