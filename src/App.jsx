@@ -183,7 +183,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)]">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative">
       
       {/* Header Bar */}
       <Header
@@ -193,15 +193,15 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
+      {/* Floating Top Center Toast Banner (No Content Shifting!) */}
+      {alertMsg && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[9990] w-auto max-w-[90vw] px-5 py-3 rounded-2xl bg-zinc-900/95 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-bold text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none">
+          {alertMsg}
+        </div>
+      )}
+
       {/* Main Container with Responsive Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
-        
-        {/* Warning Toast */}
-        {alertMsg && (
-          <div className="w-full p-3 rounded-xl bg-zinc-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
-            {alertMsg}
-          </div>
-        )}
 
         {/* 1. File Selector Component (Top on ALL devices) */}
         <FilePicker
