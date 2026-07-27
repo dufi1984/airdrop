@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -23,7 +23,6 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
 
   const isReceivingActive = transferState && transferState.direction === 'receive';
   const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
-  const isComplete = !isReceivingActive && uniqueReceivedFiles.length >= totalExpectedFiles;
 
   // Main Action: Save ALL files to Photo Gallery on Mobile (via Native Share Panel) or Download on PC
   const handleSaveOrDownloadAll = async () => {
@@ -126,7 +125,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   return (
     <div ref={containerRef} className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/50 shadow-2xl animate-fade-in">
       
-      {/* Header with Live Fraction Progress Counter (e.g. 1/3, 2/3, 3/3) */}
+      {/* Header with Live Fraction Progress Counter */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/40">
@@ -141,7 +140,6 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
               <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
                 {t.receivedPackageTitle}
               </h3>
-              {/* Smaller font size in parentheses showing fraction count (e.g., (1/3), (2/3), (3/3)) */}
               <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-400">
                 ({uniqueReceivedFiles.length}/{totalExpectedFiles})
               </span>
@@ -170,7 +168,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
           {isMobile
-            ? 'Koppints a kék gombra a felugró menü megnyitásához, vagy válaszd a képek melletti gombot az 1-enkénti Galériába mentéshez!'
+            ? 'Koppints a kék gombra a mentéshez, vagy töltsd le a fájlokat egyesével az alábbi 📥 ikonokkal!'
             : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
         </span>
       </p>
@@ -180,7 +178,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         onClick={handleSaveOrDownloadAll}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
       >
-        {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
+        <Download className="w-5 h-5" />
         <span>
           {isMobile
             ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
@@ -199,7 +197,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </button>
       </div>
 
-      {/* Collapsible Thumbnails */}
+      {/* Collapsible Thumbnails with EVERYWHERE Visible Download Icon Buttons */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -212,20 +210,20 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-extrabold text-zinc-100 truncate">
                     {item.name}
-                  </p>
+                  </name>
                   <p className="text-[11px] text-zinc-400">
                     {formatBytes(item.size)}
                   </p>
                 </div>
               </div>
 
-              {/* Individual File Save Button */}
+              {/* ALWAYS Visible Download Icon Button */}
               <button
                 onClick={() => handleSaveSingleItem(item)}
                 className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
                 title={isMobile ? "Mentés a Galériába" : "Fájl letöltése külön"}
               >
-                {isMobile ? <Share2 className="w-4.5 h-4.5 text-blue-300" /> : <Download className="w-4.5 h-4.5 text-blue-300" />}
+                <Download className="w-4.5 h-4.5 text-blue-300" />
               </button>
             </div>
           ))}
