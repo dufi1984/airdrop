@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -21,9 +21,26 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     return Array.from(map.values());
   }, [receivedFiles]);
 
-  // Direct Batch Download for ALL devices (Saves straight to Downloads folder)
-  const handleDirectDownloadAll = () => {
+  // Main Action: Save ALL files to Photo Gallery on Mobile (via Native Share Panel) or Download on PC
+  const handleSaveOrDownloadAll = async () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
+    const fileList = uniqueReceivedFiles.map((item) => item.file);
+
+    // 1. On Mobile (iPhone / Android): Open Native Bottom Panel to Save to Photo Gallery
+    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
+      try {
+        await navigator.share({
+          files: fileList,
+          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
+          text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
+        });
+        return;
+      } catch (err) {
+        console.log('User cancelled native share panel:', err);
+      }
+    }
+
+    // 2. Direct Download Fallback for PC
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -36,6 +53,31 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     });
   };
 
+  // Single Item Action: Save 1 file to Photo Gallery on Mobile or Download on PC
+  const handleSaveSingleItem = async (item) => {
+    // 1. On Mobile: Open Native Bottom Panel for THIS SINGLE FILE to save to Photo Gallery
+    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
+      try {
+        await navigator.share({
+          files: [item.file],
+          title: item.name,
+          text: 'Kép mentése a galériába',
+        });
+        return;
+      } catch (err) {
+        console.log('User cancelled single item share:', err);
+      }
+    }
+
+    // 2. Direct Download Fallback for PC
+    const link = document.createElement('a');
+    link.href = item.blobUrl;
+    link.download = item.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Auto-scroll and trigger batch download ONCE on PC only
   useEffect(() => {
     if (uniqueReceivedFiles.length > 0 && containerRef.current) {
@@ -46,7 +88,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
         autoTriggeredBatchIdRef.current = batchId;
         const timer = setTimeout(() => {
-          handleDirectDownloadAll();
+          handleSaveOrDownloadAll();
         }, 500);
         return () => clearTimeout(timer);
       }
@@ -113,17 +155,23 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
-          Kattints a kék Letöltés gombra az összes fájl mentéséhez, vagy töltsd le őket egyesével az alábbi 📥 ikonokkal!
+          {isMobile
+            ? 'Koppints a kék gombra a felugró menü megnyitásához, vagy válaszd a képek melletti gombot az 1-enkénti Galériába mentéshez!'
+            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
         </span>
       </p>
 
-      {/* Main Action Button (Single Clean Full Width Download Button) */}
+      {/* Main Action Button */}
       <button
-        onClick={handleDirectDownloadAll}
+        onClick={handleSaveOrDownloadAll}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
       >
-        <Download className="w-5 h-5" />
-        <span>Mindet Letöltése ({uniqueReceivedFiles.length})</span>
+        {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
+        <span>
+          {isMobile
+            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
+            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
+        </span>
       </button>
 
       {/* Collapsible Gallery Toggle */}
@@ -137,7 +185,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
-      {/* Collapsible Thumbnails with Prominent Individual Download Icons */}
+      {/* Collapsible Thumbnails with Individual Item Save Buttons */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -157,15 +205,14 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
                 </div>
               </div>
 
-              {/* ALWAYS Visible Prominent Individual File Download Button */}
-              <a
-                href={item.blobUrl}
-                download={item.name}
-                className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95"
-                title="Fájl letöltése külön"
+              {/* Individual File Save to Gallery (Mobile) / Download (PC) Button */}
+              <button
+                onClick={() => handleSaveSingleItem(item)}
+                className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
+                title={isMobile ? "Mentés a Galériába" : "Fájl letöltése külön"}
               >
-                <Download className="w-4.5 h-4.5 text-blue-300" />
-              </a>
+                {isMobile ? <Share2 className="w-4.5 h-4.5 text-blue-300" /> : <Download className="w-4.5 h-4.5 text-blue-300" />}
+              </button>
             </div>
           ))}
         </div>

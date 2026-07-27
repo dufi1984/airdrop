@@ -63,12 +63,13 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-6 border border-zinc-700/60 transition-all">
       
-      {/* Clean universal file input (Opens direct Android Media / Photo Gallery picker without duplicate Camera options) */}
+      {/* Photo & Video Gallery Input for Direct Mobile Picker */}
       <input
         type="file"
         ref={inputRef}
         onChange={handleFileChange}
         multiple
+        accept="image/*,video/*"
         className="hidden"
       />
 
