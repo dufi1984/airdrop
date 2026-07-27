@@ -210,7 +210,7 @@ export default function App() {
           onCancelSendToPeer={handleCancelProposedSend}
         />
 
-        {/* Clean In-Place Force App Reload Button */}
+        {/* Clean In-Place Force App Reload Button (Sentence Case Typography) */}
         <div className="w-full flex justify-center -mt-2">
           <button
             onClick={handleForceAppReload}
@@ -218,7 +218,7 @@ export default function App() {
             title="Oldal frissítése"
           >
             <RotateCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>App Frissítése</span>
+            <span>App frissítése</span>
           </button>
         </div>
 

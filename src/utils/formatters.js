@@ -28,7 +28,7 @@ export function formatEta(seconds) {
   return formatTime(seconds);
 }
 
-// Clean device detection without confusing browser parenthesis suffixes
+// Clean device detection with Hungarian sentence case (e.g. "Android telefon", "Android tablet")
 export function detectDeviceName() {
   const ua = navigator.userAgent;
 
@@ -40,9 +40,9 @@ export function detectDeviceName() {
   }
   if (/Android/.test(ua)) {
     if (/Mobile/.test(ua)) {
-      return 'Android Telefon';
+      return 'Android telefon';
     }
-    return 'Android Tablet';
+    return 'Android tablet';
   }
   if (/Macintosh|Mac OS X/.test(ua)) {
     return 'MacBook / Mac';

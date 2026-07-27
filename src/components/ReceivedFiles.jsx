@@ -184,7 +184,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </span>
       </p>
 
-      {/* Main Action Button */}
+      {/* Main Action Button (Sentence Case Typography) */}
       <button
         onClick={handleSaveOrDownloadAll}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
@@ -192,8 +192,8 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         <Download className="w-5 h-5" />
         <span>
           {isMobile
-            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
-            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`}
+            ? `Mentés mindet a galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
+            : `Minden letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`}
         </span>
       </button>
 
@@ -208,7 +208,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </button>
       </div>
 
-      {/* Collapsible Thumbnails with EVERYWHERE Visible Download Icon Buttons */}
+      {/* Collapsible Thumbnails */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -232,7 +232,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
               <button
                 onClick={() => handleSaveSingleItem(item)}
                 className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
-                title={isMobile ? "Mentés a Galériába" : "Fájl letöltése külön"}
+                title={isMobile ? "Mentés a galériába" : "Fájl letöltése külön"}
               >
                 <Download className="w-4.5 h-4.5 text-blue-300" />
               </button>
