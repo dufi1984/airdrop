@@ -80,14 +80,16 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Custom Dashed Border Dropzone Box */}
+      {/* Spacious Drop Zone Box */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-5 px-6 min-h-[90px] dropzone-dashed bg-zinc-950/80 flex items-center justify-center gap-3.5 cursor-pointer group ${
-          isDragging ? 'is-dragging' : ''
+        className={`w-full py-5 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
+          isDragging
+            ? 'border-blue-400 bg-blue-500/10'
+            : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
         }`}
       >
         <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
@@ -103,7 +105,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       </div>
 
-      {/* Selected Files Queue */}
+      {/* Selected Files Queue (~3.2 items visible so 4th item is partially visible) */}
       {files.length > 0 && (
         <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800">
           <div className="flex items-center justify-between">
@@ -119,11 +121,11 @@ export default function FilePicker({ lang, files, setFiles }) {
             </button>
           </div>
 
-          <div className="max-h-44 overflow-y-auto pr-1 flex flex-col gap-1.5">
+          <div className="max-h-[175px] overflow-y-auto pr-1 flex flex-col gap-1.5">
             {files.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-200 shadow-sm shrink-0"
+                className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs text-zinc-200 shadow-sm shrink-0 h-[48px]"
               >
                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
                   {getFileIcon(file)}
@@ -142,7 +144,7 @@ export default function FilePicker({ lang, files, setFiles }) {
             ))}
           </div>
 
-          {/* Guidance Infobox Banner */}
+          {/* Guidance Banner */}
           <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-medium">
             <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
             <span>Válaszd ki az eszközt a küldéshez</span>

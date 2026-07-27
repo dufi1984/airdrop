@@ -45,7 +45,7 @@ export default function App() {
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
           setTimeout(() => {
             setTransferState(null);
-            setAlertMsg('🟢 Sikeres átvitel! A csomag megérkezett.');
+            setAlertMsg('Sikeres átvitel! A csomag megérkezett.');
             setTimeout(() => setAlertMsg(null), 4000);
           }, 1200);
         }
@@ -62,6 +62,8 @@ export default function App() {
         }
       },
       (promptInfo) => {
+        // Automatically close QR code modal if open, so incoming prompt is immediately visible!
+        setShowQrModal(false);
         setIncomingPrompt({ ...promptInfo });
       },
       (rejectedPeerId) => {
@@ -71,12 +73,12 @@ export default function App() {
           next.delete(rejectedPeerId);
           return next;
         });
-        setAlertMsg('🔴 A fogadó fél elutasította az átvitelt.');
+        setAlertMsg('A fogadó fél elutasította az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3500);
       },
       (cancelledPeerId) => {
         setIncomingPrompt(null);
-        setAlertMsg('ℹ️ A küldő visszavonta az átvitelt.');
+        setAlertMsg('A küldő visszavonta az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3000);
       }
     );
@@ -175,7 +177,7 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Main Container */}
+      {/* Main Container with Responsive Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
         
         {/* Warning Toast */}
