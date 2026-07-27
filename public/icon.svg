@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <rect width="512" height="512" rx="120" fill="#121214"/>
+  <g fill="none" stroke="#3b82f6" stroke-width="26" stroke-linecap="round">
+    <!-- Outer radar arc 4 -->
+    <path d="M 120 375 A 190 190 0 1 1 392 375" />
+    <!-- Radar arc 3 -->
+    <path d="M 154 345 A 148 148 0 1 1 358 345" />
+    <!-- Radar arc 2 -->
+    <path d="M 188 315 A 106 106 0 1 1 324 315" />
+    <!-- Radar arc 1 -->
+    <path d="M 222 285 A 64 64 0 1 1 290 285" />
+    <!-- Center radar dot -->
+    <circle cx="256" cy="256" r="18" fill="#3b82f6" stroke="none"/>
+  </g>
+</svg>
