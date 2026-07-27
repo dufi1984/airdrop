@@ -30,10 +30,11 @@ export default function App() {
 
   const t = translations[lang];
 
-  // Preserve file queue state in window object
+  // Preserve file queue state in window object to prevent PWA background reloads
   useEffect(() => {
     window.__airdrop_has_files_queued = filesToSend.length > 0;
-  }, [filesToSend]);
+    window.__airdrop_has_received_files = receivedFiles.length > 0;
+  }, [filesToSend, receivedFiles]);
 
   // Initialize instant PeerJS cloud network with phone call style incoming prompt callback
   useEffect(() => {
@@ -124,7 +125,6 @@ export default function App() {
     setPendingSendPeers((prev) => {
       const next = new Set(prev);
       next.delete(targetPeerId);
-      return next;
     });
     setAlertMsg('Visszavontad a küldést.');
     setTimeout(() => setAlertMsg(null), 2500);
@@ -160,7 +160,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-500 selection:text-white">
       
       {/* Header Bar */}
       <Header
@@ -176,7 +176,7 @@ export default function App() {
         
         {/* Warning Toast */}
         {alertMsg && (
-          <div className="w-full p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
+          <div className="w-full p-4 rounded-2xl bg-zinc-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
             {alertMsg}
           </div>
         )}
@@ -209,10 +209,10 @@ export default function App() {
         <div className="w-full flex justify-center -mt-2">
           <button
             onClick={handleForceAppReload}
-            className="py-2.5 px-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
+            className="py-2.5 px-4 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-blue-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
             title="Oldal frissítése"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>App Frissítése</span>
           </button>
         </div>
@@ -227,7 +227,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 font-medium">
+      <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
         <span>Airdrop by Dufi</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
