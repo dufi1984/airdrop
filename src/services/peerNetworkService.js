@@ -60,7 +60,8 @@ class PeerNetworkService {
         try {
           conn.send(JSON.stringify({
             type: 'handshake',
-            deviceInfo: this.myDeviceName
+            deviceInfo: this.myDeviceName,
+            deviceType: this.myDeviceName
           }));
         } catch (e) {}
       }
@@ -148,7 +149,7 @@ class PeerNetworkService {
 
     try {
       const conn = this.peer.connect(targetSlotId, {
-        metadata: { deviceInfo: this.myDeviceName },
+        metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
         reliable: true
       });
 
@@ -164,17 +165,20 @@ class PeerNetworkService {
     conn.on('open', () => {
       console.log(`🤝 Connected with ${conn.peer}`);
       
-      const peerDeviceInfo = conn.metadata?.deviceInfo || 'Eszköz';
+      const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
         id: conn.peer,
-        deviceInfo: peerDeviceInfo
+        deviceInfo: peerDeviceInfo,
+        deviceType: peerDeviceInfo,
+        name: peerDeviceInfo
       });
 
       try {
         conn.send(JSON.stringify({
           type: 'handshake',
-          deviceInfo: this.myDeviceName
+          deviceInfo: this.myDeviceName,
+          deviceType: this.myDeviceName
         }));
       } catch (e) {}
 
@@ -211,8 +215,13 @@ class PeerNetworkService {
 
   notifyDevicesUpdate() {
     const list = [
-      { id: this.myId, deviceInfo: this.myDeviceName, isSelf: true },
-      ...Array.from(this.onlineDevices.values())
+      { id: this.myId, deviceInfo: this.myDeviceName, deviceType: this.myDeviceName, name: this.myDeviceName, isSelf: true },
+      ...Array.from(this.onlineDevices.values()).map(p => ({
+        ...p,
+        deviceType: p.deviceType || p.deviceInfo || p.name || 'Eszköz',
+        deviceInfo: p.deviceType || p.deviceInfo || p.name || 'Eszköz',
+        name: p.deviceType || p.deviceInfo || p.name || 'Eszköz'
+      }))
     ];
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
@@ -224,9 +233,12 @@ class PeerNetworkService {
         const msg = JSON.parse(data);
 
         if (msg.type === 'handshake') {
+          const peerName = msg.deviceType || msg.deviceInfo || 'Eszköz';
           this.onlineDevices.set(fromPeerId, {
             id: fromPeerId,
-            deviceInfo: msg.deviceInfo || 'Eszköz'
+            deviceInfo: peerName,
+            deviceType: peerName,
+            name: peerName
           });
           this.notifyDevicesUpdate();
           return;
@@ -235,11 +247,12 @@ class PeerNetworkService {
         // Sender proposed transfer header
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
+          const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
             this.onIncomingPrompt({
               transferId: msg.transferId || Date.now(),
               fromPeerId,
-              senderName: senderInfo ? senderInfo.deviceInfo : 'Online Eszköz',
+              senderName,
               totalFiles: msg.totalFiles,
               fileName: msg.fileName,
               fileNames: msg.fileNames || [msg.fileName]

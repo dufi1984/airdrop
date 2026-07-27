@@ -32,7 +32,7 @@ export default function OnlineDevices({
 
   const otherPeers = peerList.filter((p) => !p.isSelf);
   const myDevice = peerList.find((p) => p.isSelf);
-  const myDeviceName = myDevice?.deviceType || myDevice?.name || detectDeviceName();
+  const myDeviceName = myDevice?.deviceType || myDevice?.deviceInfo || myDevice?.name || detectDeviceName();
 
   return (
     <div className="w-full bg-zinc-900/90 rounded-2xl p-4 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
@@ -86,10 +86,10 @@ export default function OnlineDevices({
           </div>
         </div>
 
-        {/* 2. Other Online Devices Cards */}
+        {/* 2. Other Online Devices Cards (Explicit Device Name e.g. "Windows PC" / "Android telefon" / "iPhone") */}
         {otherPeers.map((peer) => {
           const isPending = pendingSendPeers.has(peer.id);
-          const peerDeviceName = peer.deviceType || peer.name || 'Online eszköz';
+          const peerDeviceName = peer.deviceType || peer.deviceInfo || peer.name || 'Online eszköz';
 
           return (
             <div
@@ -100,7 +100,7 @@ export default function OnlineDevices({
                   : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
               }`}
             >
-              {/* Left Side: Icon + Explicit Device Name */}
+              {/* Left Side: Icon + Explicit Remote Device Name */}
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                   {getDeviceIcon(peerDeviceName)}
