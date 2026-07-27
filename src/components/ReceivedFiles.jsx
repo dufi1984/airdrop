@@ -21,27 +21,12 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     return Array.from(map.values());
   }, [receivedFiles]);
 
-  // Save/Download Handler: Download each unique file EXACTLY ONCE
+  // Bulletproof Multi-File Save/Download for Android, iOS & Desktop PC
   const handleSaveOrDownloadAll = async () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
-    const fileList = uniqueReceivedFiles.map((item) => item.file);
 
-    // 1. On Mobile: Use Web Share API
-    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
-      try {
-        await navigator.share({
-          files: fileList,
-          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-          text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
-        });
-        return;
-      } catch (err) {
-        console.log('User dismissed Web Share API:', err);
-        return;
-      }
-    }
-
-    // 2. On Desktop PC: Download each unique file EXACTLY ONCE with 350ms delays
+    // Trigger direct programmatic download for ALL files with 350ms delays
+    // This guarantees every single photo/video is saved to disk on Android & PC
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -52,6 +37,23 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         document.body.removeChild(link);
       }, index * 350);
     });
+
+    // On iOS Safari mobile, also offer Web Share API sheet if available
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS && navigator.share && navigator.canShare) {
+      const fileList = uniqueReceivedFiles.map((item) => item.file);
+      if (navigator.canShare({ files: fileList })) {
+        try {
+          await navigator.share({
+            files: fileList,
+            title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
+            text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
+          });
+        } catch (err) {
+          console.log('User dismissed Web Share API:', err);
+        }
+      }
+    }
   };
 
   // Auto-scroll and trigger batch download ONCE per unique batch completion
@@ -132,9 +134,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
-          {isMobile
-            ? 'Koppints az alábbi gombra az összes fotó/videó 1-kattintásos mentéséhez a Galériába!'
-            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
+          Koppints az alábbi gombra mind a ({uniqueReceivedFiles.length}) fájl hiánytalan mentéséhez a Galériádba/Letöltések közé!
         </span>
       </p>
 
@@ -145,9 +145,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       >
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
-          {isMobile
-            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
-            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
+          Mentés mindet ({uniqueReceivedFiles.length})
         </span>
       </button>
 
@@ -162,23 +160,35 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
-      {/* Collapsible Thumbnails */}
+      {/* Collapsible Thumbnails with Individual Download Buttons */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
             <div
               key={index}
-              className="flex items-center gap-3 p-2.5 rounded-2xl bg-zinc-900/90 border border-white/10"
+              className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-zinc-900/90 border border-white/10"
             >
-              {getMediaPreview(item)}
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-zinc-100 truncate">
-                  {item.name}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {formatBytes(item.size)}
-                </p>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {getMediaPreview(item)}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-zinc-100 truncate">
+                    {item.name}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {formatBytes(item.size)}
+                  </p>
+                </div>
               </div>
+
+              {/* Individual Single File Download Trigger */}
+              <a
+                href={item.blobUrl}
+                download={item.name}
+                className="p-2 rounded-xl bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 transition-all shrink-0"
+                title="Fájl mentése külön"
+              >
+                <Download className="w-4 h-4" />
+              </a>
             </div>
           ))}
         </div>
