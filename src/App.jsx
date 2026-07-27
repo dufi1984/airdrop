@@ -86,8 +86,14 @@ export default function App() {
     };
   }, []);
 
-  // Force cache-busting reload button action with safety check if files are queued
+  // Toggleable reload button handler (prevents stuck spinning, confirms if files queued)
   const handleForceAppReload = () => {
+    if (isRefreshing) {
+      setIsRefreshing(false);
+      window.location.reload(true);
+      return;
+    }
+
     if (filesToSend.length > 0) {
       const confirmReload = window.confirm('Biztosan frissíted az appot? A kijelölt fájlok sora törlődni fog.');
       if (!confirmReload) return;
@@ -169,7 +175,7 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Main Container with Responsive Ergonomic Ordering */}
+      {/* Main Container with Responsive Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
         
         {/* Warning Toast */}
@@ -193,7 +199,7 @@ export default function App() {
           />
         </div>
 
-        {/* Active Transfer Progress Banner */}
+        {/* 2. Active Transfer Progress Banner */}
         {transferState && (
           <div className="order-2 sm:order-3">
             <TransferProgress lang={lang} transferState={transferState} />
@@ -221,10 +227,10 @@ export default function App() {
 
       </main>
 
-      {/* Footer */}
+      {/* Footer with Subtle Small Heart Icon */}
       <footer className="w-full border-t border-zinc-800/80 py-4 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
         <span>Airdrop by Dufi</span>
-        <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+        <Heart className="w-3 h-3 text-rose-500/80 fill-rose-500/80" />
       </footer>
 
       {/* Phone Call Style Incoming Prompt Modal Prompt */}

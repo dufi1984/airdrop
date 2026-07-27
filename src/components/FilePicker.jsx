@@ -60,7 +60,7 @@ export default function FilePicker({ lang, files, setFiles }) {
   };
 
   return (
-    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
+    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
       
       {/* Strict Photo & Video Gallery Input */}
       <input
@@ -80,26 +80,23 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Drop Zone Box (Desktop: Top Drag Zone, Mobile: Bottom Thumb Zone) */}
+      {/* Spacious 1.5x Tallózás Drop Zone Box (Zero Blue Underline) */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-4 px-4 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
+        className={`w-full py-4.5 px-5 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
           isDragging
             ? 'border-blue-400 bg-blue-500/10'
-            : 'border-zinc-700 bg-zinc-950/80 hover:border-blue-500 hover:bg-zinc-950'
+            : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
         }`}
       >
         <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
           <FolderSearch className="w-5 h-5 text-blue-400" />
         </div>
-        <div className="text-xs sm:text-sm text-zinc-300 font-normal">
-          <span>{t.dragDropText}</span>
-          <span className="text-blue-400 font-bold underline underline-offset-2">
-            tallózz
-          </span>
+        <div className="text-xs sm:text-sm text-zinc-300 font-medium">
+          {t.dragDropText}
         </div>
       </div>
 
@@ -119,7 +116,7 @@ export default function FilePicker({ lang, files, setFiles }) {
             </button>
           </div>
 
-          <div className="max-h-40 overflow-y-auto pr-1 flex flex-col gap-1.5">
+          <div className="max-h-44 overflow-y-auto pr-1 flex flex-col gap-1.5">
             {files.map((file, idx) => (
               <div
                 key={idx}
