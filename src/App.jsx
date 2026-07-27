@@ -193,9 +193,9 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Floating Top Center Toast Banner (No Content Shifting!) */}
+      {/* Floating Perfect Viewport Center Toast Banner */}
       {alertMsg && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[9990] w-auto max-w-[90vw] px-5 py-3 rounded-2xl bg-zinc-900/95 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-bold text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none">
+        <div className="fixed top-16 inset-x-0 mx-auto w-max z-[9990] max-w-[90vw] px-5 py-2.5 rounded-2xl bg-zinc-900/95 border border-emerald-500/50 text-emerald-300 text-xs sm:text-sm font-bold text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none">
           {alertMsg}
         </div>
       )}
