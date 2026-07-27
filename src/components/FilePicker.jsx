@@ -1,17 +1,47 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, Image, Film, FileText, Trash2, ArrowDown } from 'lucide-react';
+import { UploadCloud, Image, Film, FileText, Trash2, ArrowDown, AlertTriangle } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
+
+// 500MB safety threshold per file to prevent iOS Safari OOM crashes
+const MAX_MOBILE_FILE_SIZE = 500 * 1024 * 1024;
 
 export default function FilePicker({ lang, files, setFiles }) {
   const t = translations[lang];
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [sizeWarning, setSizeWarning] = useState(null);
+
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setFiles((prev) => [...prev, ...newFiles]);
+    try {
+      if (e.target.files && e.target.files.length > 0) {
+        const newFiles = Array.from(e.target.files);
+        
+        // Filter out oversized files on mobile to prevent Safari WebProcess OOM crashes
+        const validFiles = [];
+        let oversizedCount = 0;
+
+        newFiles.forEach((file) => {
+          if (isMobile && file.size > MAX_MOBILE_FILE_SIZE) {
+            oversizedCount++;
+          } else {
+            validFiles.push(file);
+          }
+        });
+
+        if (oversizedCount > 0) {
+          setSizeWarning(`⚠️ ${oversizedCount} fájl meghaladta a 500 MB-os mobil memóriahatárt a telefon védelmében.`);
+          setTimeout(() => setSizeWarning(null), 5000);
+        }
+
+        if (validFiles.length > 0) {
+          setFiles((prev) => [...prev, ...validFiles]);
+        }
+      }
+    } catch (err) {
+      console.error('File selection error:', err);
     }
   };
 
@@ -59,6 +89,14 @@ export default function FilePicker({ lang, files, setFiles }) {
         accept="image/*,video/*,audio/*,.heic,.heif,.mov,.mp4,.m4v,.zip,.pdf,.doc,.docx,*/*"
         className="hidden"
       />
+
+      {/* Warning Toast */}
+      {sizeWarning && (
+        <div className="w-full p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 shadow-lg">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{sizeWarning}</span>
+        </div>
+      )}
 
       {/* Drag & Drop Zone */}
       <div
