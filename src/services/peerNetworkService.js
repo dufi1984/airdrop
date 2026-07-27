@@ -32,6 +32,7 @@ class PeerNetworkService {
     this.pendingTransferFiles = new Map();
     this.activeSendCancellations = new Map();
     this.handledTransferIds = new Set();
+    this.cancelledPeersShield = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -271,8 +272,10 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header (with deduplication guard)
+        // Sender proposed transfer header (with deduplication & cancellation shield guard)
         if (msg.type === 'propose_transfer') {
+          if (this.cancelledPeersShield.get(fromPeerId)) return;
+
           const transferKey = `${fromPeerId}_${msg.transferId}`;
           if (this.handledTransferIds.has(transferKey)) return;
           this.handledTransferIds.add(transferKey);
@@ -295,6 +298,9 @@ class PeerNetworkService {
 
         // Sender cancelled proposed transfer before receiver accepts
         if (msg.type === 'cancel_proposed_transfer') {
+          this.cancelledPeersShield.set(fromPeerId, true);
+          setTimeout(() => this.cancelledPeersShield.delete(fromPeerId), 4000);
+
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
         }
@@ -371,7 +377,7 @@ class PeerNetworkService {
       const speed = elapsed > 0 ? currentBytes / elapsed : 0;
       const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
+      const progress = Math.min(100, Math.round((offset / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
@@ -381,8 +387,8 @@ class PeerNetworkService {
           progress,
           speed,
           eta,
-          currentIndex,
-          totalFiles
+          currentIndex: header.currentIndex,
+          totalFiles: header.totalFiles
         });
       }
     }
@@ -404,14 +410,20 @@ class PeerNetworkService {
     }
   }
 
-  // Cancel proposed transfer before receiver accepts
-  cancelProposedSend(targetPeerId) {
-    const conn = this.connections.get(targetPeerId);
-    if (conn && conn.open) {
-      conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
-    }
+  // Cancel proposed transfer before receiver accepts with 3x send guarantee
+  async cancelProposedSend(targetPeerId) {
     this.pendingTransferFiles.delete(targetPeerId);
     this.activeSendCancellations.set(targetPeerId, true);
+
+    for (let i = 0; i < 3; i++) {
+      const conn = this.connections.get(targetPeerId);
+      if (conn && conn.open) {
+        try {
+          conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
+        } catch (e) {}
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
   }
 
   // Propose transfer to target peer with 3x retry delivery guarantee
@@ -441,7 +453,7 @@ class PeerNetworkService {
 
     const transferId = Date.now();
 
-    // Send proposed transfer payload 3 times with 250ms interval to guarantee delivery
+    // Send proposed transfer payload 3 times with 200ms interval to guarantee delivery
     for (let i = 0; i < 3; i++) {
       if (this.activeSendCancellations.get(targetPeerId)) break;
       const currentConn = this.connections.get(targetPeerId);
@@ -456,7 +468,7 @@ class PeerNetworkService {
           }));
         } catch (err) {}
       }
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 200));
     }
   }
 
@@ -559,6 +571,7 @@ class PeerNetworkService {
     this.pendingTransferFiles.clear();
     this.activeSendCancellations.clear();
     this.handledTransferIds.clear();
+    this.cancelledPeersShield.clear();
   }
 }
 
