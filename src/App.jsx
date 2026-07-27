@@ -59,7 +59,11 @@ export default function App() {
         } else {
           setReceivedFiles((prev) => [...prev, receivedFileData]);
         }
-        setTransferState(null);
+        
+        // If all files in batch have arrived, clear transferState
+        if (receivedFileData.currentIndex >= receivedFileData.totalFiles) {
+          setTransferState(null);
+        }
       },
       (promptInfo) => {
         // Always trigger fresh modal prompt even for back-to-back transfers
@@ -125,6 +129,7 @@ export default function App() {
     setPendingSendPeers((prev) => {
       const next = new Set(prev);
       next.delete(targetPeerId);
+      return next;
     });
     setAlertMsg('Visszavontad a küldést.');
     setTimeout(() => setAlertMsg(null), 2500);
@@ -221,6 +226,7 @@ export default function App() {
         <ReceivedFiles
           lang={lang}
           receivedFiles={receivedFiles}
+          transferState={transferState}
           onClearReceived={handleClearReceived}
         />
 
@@ -232,7 +238,7 @@ export default function App() {
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
 
-      {/* Phone Call Style Incoming Transfer Modal Prompt */}
+      {/* Phone Call Style Incoming Prompt Modal Prompt */}
       {incomingPrompt && (
         <IncomingPromptModal
           lang={lang}

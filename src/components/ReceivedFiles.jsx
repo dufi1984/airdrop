@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
-export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
+export default function ReceivedFiles({ lang, receivedFiles, transferState, onClearReceived }) {
   const t = translations[lang];
   const containerRef = useRef(null);
   const autoTriggeredBatchIdRef = useRef(null);
@@ -20,6 +20,10 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     });
     return Array.from(map.values());
   }, [receivedFiles]);
+
+  const isReceivingActive = transferState && transferState.direction === 'receive';
+  const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
+  const isComplete = !isReceivingActive && uniqueReceivedFiles.length >= totalExpectedFiles;
 
   // Main Action: Save ALL files to Photo Gallery on Mobile (via Native Share Panel) or Download on PC
   const handleSaveOrDownloadAll = async () => {
@@ -55,7 +59,6 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
 
   // Single Item Action: Save 1 file to Photo Gallery on Mobile or Download on PC
   const handleSaveSingleItem = async (item) => {
-    // 1. On Mobile: Open Native Bottom Panel for THIS SINGLE FILE to save to Photo Gallery
     if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
       try {
         await navigator.share({
@@ -69,7 +72,6 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       }
     }
 
-    // 2. Direct Download Fallback for PC
     const link = document.createElement('a');
     link.href = item.blobUrl;
     link.download = item.name;
@@ -124,18 +126,30 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
   return (
     <div ref={containerRef} className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-emerald-500/50 shadow-2xl animate-fade-in">
       
-      {/* Header */}
+      {/* Header with Live Fraction Progress Counter (e.g. 1/3, 2/3, 3/3) */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/40">
-            <CheckCircle2 className="w-5 h-5" />
+            {isReceivingActive ? (
+              <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            )}
           </div>
           <div>
-            <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
-              {t.receivedPackageTitle} ({uniqueReceivedFiles.length})
-            </h3>
+            <div className="flex items-baseline gap-1.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
+                {t.receivedPackageTitle}
+              </h3>
+              {/* Smaller font size in parentheses showing fraction count (e.g., (1/3), (2/3), (3/3)) */}
+              <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-400">
+                ({uniqueReceivedFiles.length}/{totalExpectedFiles})
+              </span>
+            </div>
             <p className="text-xs text-emerald-300 font-medium">
-              Sikeresen megérkezett a csomag!
+              {isReceivingActive
+                ? `Fájlok érkezése folyamatban... (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
+                : 'Sikeresen megérkezett a csomag!'}
             </p>
           </div>
         </div>
@@ -169,8 +183,8 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
           {isMobile
-            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
-            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
+            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
+            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`}
         </span>
       </button>
 
@@ -180,12 +194,12 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors"
         >
-          <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({uniqueReceivedFiles.length})</span>
+          <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({uniqueReceivedFiles.length}/{totalExpectedFiles})</span>
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
-      {/* Collapsible Thumbnails with Individual Item Save Buttons */}
+      {/* Collapsible Thumbnails */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -205,7 +219,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
                 </div>
               </div>
 
-              {/* Individual File Save to Gallery (Mobile) / Download (PC) Button */}
+              {/* Individual File Save Button */}
               <button
                 onClick={() => handleSaveSingleItem(item)}
                 className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
