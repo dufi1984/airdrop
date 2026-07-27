@@ -186,11 +186,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Active Transfer Progress Banner */}
-        {transferState && (
-          <TransferProgress lang={lang} transferState={transferState} />
-        )}
-
         {/* 1. File Selector Component (Top) */}
         <FilePicker
           lang={lang}
@@ -210,8 +205,21 @@ export default function App() {
           onCancelSendToPeer={handleCancelProposedSend}
         />
 
-        {/* Clean In-Place Force App Reload Button (Sentence Case Typography) */}
-        <div className="w-full flex justify-center -mt-2">
+        {/* Active Transfer Progress Banner (Positioned directly under Online Devices!) */}
+        {transferState && (
+          <TransferProgress lang={lang} transferState={transferState} />
+        )}
+
+        {/* 3. Received Grouped Package Section */}
+        <ReceivedFiles
+          lang={lang}
+          receivedFiles={receivedFiles}
+          transferState={transferState}
+          onClearReceived={handleClearReceived}
+        />
+
+        {/* Clean In-Place Force App Reload Button (Positioned at the very bottom above footer!) */}
+        <div className="w-full flex justify-center pt-2 pb-4">
           <button
             onClick={handleForceAppReload}
             className="py-2.5 px-4 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-blue-300 text-xs font-semibold border border-white/10 flex items-center gap-2 transition-all active:scale-95 shadow-md"
@@ -221,14 +229,6 @@ export default function App() {
             <span>App frissítése</span>
           </button>
         </div>
-
-        {/* 3. Received Grouped Package Section */}
-        <ReceivedFiles
-          lang={lang}
-          receivedFiles={receivedFiles}
-          transferState={transferState}
-          onClearReceived={handleClearReceived}
-        />
 
       </main>
 
