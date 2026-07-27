@@ -80,19 +80,19 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Spacious 1.5x Tallózás Drop Zone Box (Zero Blue Underline) */}
+      {/* Spacious Standard Height Drop Zone Box (py-6 = 24px top & 24px bottom padding) */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-4.5 px-5 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
+        className={`w-full py-6 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
           isDragging
             ? 'border-blue-400 bg-blue-500/10'
             : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
         }`}
       >
-        <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
           <FolderSearch className="w-5 h-5 text-blue-400" />
         </div>
         <div className="text-xs sm:text-sm text-zinc-300 font-medium">
