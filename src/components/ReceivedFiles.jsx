@@ -6,17 +6,33 @@ import { formatBytes } from '../utils/formatters';
 export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
   const t = translations[lang];
   const containerRef = useRef(null);
-  const autoTriggeredRef = useRef(false);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-  // Auto-save / Auto-download function
+  // Auto-scroll to received files section on new package arrival
+  useEffect(() => {
+    if (receivedFiles && receivedFiles.length > 0 && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      // On Desktop PC: Auto-trigger batch downloads cleanly into Downloads folder
+      if (!isMobile) {
+        const timer = setTimeout(() => {
+          handleSaveOrDownloadAll();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [receivedFiles, isMobile]);
+
+  if (!receivedFiles || receivedFiles.length === 0) return null;
+
+  // Save/Download Handler based on device
   const handleSaveOrDownloadAll = async () => {
     if (!receivedFiles || receivedFiles.length === 0) return;
     const fileList = receivedFiles.map((item) => item.file);
 
-    // 1. On Mobile: Auto-popup Web Share API sheet to export photos to Photo Gallery
+    // 1. On Mobile: Use Web Share API (Requires user tap gesture on mobile)
     if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
@@ -27,42 +43,22 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         return;
       } catch (err) {
         console.log('User dismissed Web Share API:', err);
+        return;
       }
     }
 
-    // 2. On Desktop PC / Fallback: Automatic direct batch download into Downloads folder
+    // 2. On Desktop PC: Download ALL files into Downloads folder with 350ms delays to bypass popup blockers
     receivedFiles.forEach((item, index) => {
       setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = item.blobUrl;
-        a.download = item.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }, index * 250);
+        const link = document.createElement('a');
+        link.href = item.blobUrl;
+        link.download = item.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, index * 350);
     });
   };
-
-  // Auto-scroll and automatically trigger save/download upon batch completion
-  useEffect(() => {
-    if (receivedFiles && receivedFiles.length > 0) {
-      if (containerRef.current) {
-        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-
-      // Auto-trigger save/download ONCE automatically as soon as package arrives
-      if (!autoTriggeredRef.current) {
-        autoTriggeredRef.current = true;
-        setTimeout(() => {
-          handleSaveOrDownloadAll();
-        }, 500);
-      }
-    } else {
-      autoTriggeredRef.current = false;
-    }
-  }, [receivedFiles]);
-
-  if (!receivedFiles || receivedFiles.length === 0) return null;
 
   const getMediaPreview = (item) => {
     if (item.mimeType.startsWith('image/')) {
@@ -123,21 +119,21 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
           {isMobile
-            ? '⚡ Az átvétel befejeződött: a mentés ablak automatikusan felugrott!'
-            : '⚡ Az átvétel befejeződött: a fájlok letöltése automatikusan elindult a gépedre!'}
+            ? 'Koppints az alábbi gombra az összes fotó/videó 1-kattintásos mentéséhez a Galériába!'
+            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
         </span>
       </p>
 
-      {/* Manual Backup Action Button (In case user wants to re-trigger or share again) */}
+      {/* Main Action Button */}
       <button
         onClick={handleSaveOrDownloadAll}
-        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40"
+        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
       >
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
           {isMobile
-            ? `Mentés újra a Galériába (${receivedFiles.length})`
-            : `Letöltés újra a gépre (${receivedFiles.length})`}
+            ? `Mentés mindet a Galériába (${receivedFiles.length})`
+            : `Mindet Letöltése a gépre (${receivedFiles.length})`}
         </span>
       </button>
 
@@ -165,7 +161,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
                 <p className="text-xs font-semibold text-zinc-100 truncate">
                   {item.name}
                 </p>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[11px] text-slate-400">
                   {formatBytes(item.size)}
                 </p>
               </div>

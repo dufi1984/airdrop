@@ -52,7 +52,8 @@ export default function App() {
         }
       },
       (receivedFileData) => {
-        setReceivedFiles((prev) => [receivedFileData, ...prev]);
+        // Add file to current batch
+        setReceivedFiles((prev) => [...prev, receivedFileData]);
         setTransferState(null);
       },
       (promptInfo) => {
@@ -80,7 +81,7 @@ export default function App() {
     };
   }, []);
 
-  // Clean in-place hard reload without modifying URL bar
+  // Force cache-busting reload button action for PWA standalone app mode
   const handleForceAppReload = () => {
     setIsRefreshing(true);
     
@@ -95,9 +96,10 @@ export default function App() {
     }, 200);
   };
 
-  // Accept incoming transfer prompt
+  // Accept incoming transfer prompt -> reset received files for fresh new package batch
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
+      setReceivedFiles([]); // Clear previous batch so new batch starts fresh!
       peerNetworkService.acceptIncoming(incomingPrompt.fromPeerId);
       setIncomingPrompt(null);
     }
