@@ -6,38 +6,32 @@ import { formatBytes } from '../utils/formatters';
 export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
   const t = translations[lang];
   const containerRef = useRef(null);
+  const autoTriggeredBatchIdRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-  // Auto-scroll to received files section on new package arrival
-  useEffect(() => {
-    if (receivedFiles && receivedFiles.length > 0 && containerRef.current) {
-      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // Deduplicated list of received files by blobUrl/name
+  const uniqueReceivedFiles = React.useMemo(() => {
+    if (!receivedFiles) return [];
+    const map = new Map();
+    receivedFiles.forEach((item) => {
+      map.set(item.name + '_' + item.size, item);
+    });
+    return Array.from(map.values());
+  }, [receivedFiles]);
 
-      // On Desktop PC: Auto-trigger batch downloads cleanly into Downloads folder
-      if (!isMobile) {
-        const timer = setTimeout(() => {
-          handleSaveOrDownloadAll();
-        }, 500);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [receivedFiles, isMobile]);
-
-  if (!receivedFiles || receivedFiles.length === 0) return null;
-
-  // Save/Download Handler based on device
+  // Save/Download Handler: Download each unique file EXACTLY ONCE
   const handleSaveOrDownloadAll = async () => {
-    if (!receivedFiles || receivedFiles.length === 0) return;
-    const fileList = receivedFiles.map((item) => item.file);
+    if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
+    const fileList = uniqueReceivedFiles.map((item) => item.file);
 
-    // 1. On Mobile: Use Web Share API (Requires user tap gesture on mobile)
+    // 1. On Mobile: Use Web Share API
     if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
           files: fileList,
-          title: `Airdrop Media (${receivedFiles.length} fájl)`,
+          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
           text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
         });
         return;
@@ -47,8 +41,8 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       }
     }
 
-    // 2. On Desktop PC: Download ALL files into Downloads folder with 350ms delays to bypass popup blockers
-    receivedFiles.forEach((item, index) => {
+    // 2. On Desktop PC: Download each unique file EXACTLY ONCE with 350ms delays
+    uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
         link.href = item.blobUrl;
@@ -59,6 +53,26 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       }, index * 350);
     });
   };
+
+  // Auto-scroll and trigger batch download ONCE per unique batch completion
+  useEffect(() => {
+    if (uniqueReceivedFiles.length > 0 && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      // Create a unique batch identifier based on file names
+      const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
+      
+      if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
+        autoTriggeredBatchIdRef.current = batchId;
+        const timer = setTimeout(() => {
+          handleSaveOrDownloadAll();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [uniqueReceivedFiles, isMobile]);
+
+  if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return null;
 
   const getMediaPreview = (item) => {
     if (item.mimeType.startsWith('image/')) {
@@ -95,7 +109,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
-              {t.receivedPackageTitle} ({receivedFiles.length})
+              {t.receivedPackageTitle} ({uniqueReceivedFiles.length})
             </h3>
             <p className="text-xs text-emerald-300 font-medium">
               Sikeresen megérkezett a csomag!
@@ -132,8 +146,8 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
           {isMobile
-            ? `Mentés mindet a Galériába (${receivedFiles.length})`
-            : `Mindet Letöltése a gépre (${receivedFiles.length})`}
+            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
+            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
         </span>
       </button>
 
@@ -143,7 +157,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors"
         >
-          <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({receivedFiles.length})</span>
+          <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({uniqueReceivedFiles.length})</span>
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
@@ -151,7 +165,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       {/* Collapsible Thumbnails */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
-          {receivedFiles.map((item, index) => (
+          {uniqueReceivedFiles.map((item, index) => (
             <div
               key={index}
               className="flex items-center gap-3 p-2.5 rounded-2xl bg-zinc-900/90 border border-white/10"
