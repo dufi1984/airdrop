@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Download, Film, FileText, CheckCircle2, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -172,16 +172,6 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
           <span className="hidden sm:inline">{t.rejectPackage}</span>
         </button>
       </div>
-
-      {/* Notice Bar */}
-      <p className="text-xs text-zinc-300 bg-zinc-950/90 p-3.5 rounded-2xl border border-zinc-700/80 flex items-center gap-2 font-medium">
-        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-        <span>
-          {isMobile
-            ? 'Koppints a kék gombra a mentéshez, vagy töltsd le a fájlokat egyesével az alábbi 📥 ikonokkal!'
-            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
-        </span>
-      </p>
 
       {/* Main Action Button */}
       <button

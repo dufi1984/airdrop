@@ -247,7 +247,7 @@ class PeerNetworkService {
         // Sender proposed transfer header -> Trigger incoming prompt modal!
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
-          const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
+          const senderName = msg.senderName || senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
             this.onIncomingPrompt({
               transferId: msg.transferId || Date.now(),
@@ -382,7 +382,7 @@ class PeerNetworkService {
     this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer (with 1.5s connection retry wait loop)
+  // Propose transfer to target peer (with 1.5s connection retry wait loop and explicit sender name payload)
   async sendFilesToPeer(targetPeerId, fileList) {
     let conn = this.connections.get(targetPeerId);
     
@@ -401,10 +401,20 @@ class PeerNetworkService {
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Propose transfer with timestamp & full list of file names
+    // Send instant handshake refresh first so receiver knows exact sender device name
+    try {
+      conn.send(JSON.stringify({
+        type: 'handshake',
+        deviceInfo: this.myDeviceName,
+        deviceType: this.myDeviceName
+      }));
+    } catch (e) {}
+
+    // Propose transfer with timestamp, senderName & full list of file names
     conn.send(JSON.stringify({
       type: 'propose_transfer',
-      transferId: Date.now(),
+      transferId: Date.now() + Math.random(),
+      senderName: this.myDeviceName,
       totalFiles: fileList.length,
       fileName: fileList[0].name,
       fileNames: Array.from(fileList).map((f) => f.name)
