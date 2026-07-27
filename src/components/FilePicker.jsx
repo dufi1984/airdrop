@@ -62,11 +62,6 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
       
-      {/* Section Header */}
-      <h2 className="text-base font-bold text-zinc-100 tracking-tight">
-        {t.selectFiles}
-      </h2>
-
       {/* Strict Photo & Video Gallery Input */}
       <input
         type="file"
@@ -85,13 +80,13 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Spacious 90px Drop Zone Box */}
+      {/* Drop Zone Box with Title & Subtitle inside next to Icon */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-6 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
+        className={`w-full py-5 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
           isDragging
             ? 'border-blue-400 bg-blue-500/10'
             : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
@@ -100,8 +95,13 @@ export default function FilePicker({ lang, files, setFiles }) {
         <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
           <FolderSearch className="w-5 h-5 text-blue-400" />
         </div>
-        <div className="text-xs sm:text-sm text-zinc-300 font-medium">
-          {t.dragDropText}
+        <div className="flex flex-col text-left">
+          <h3 className="text-sm sm:text-base font-extrabold text-zinc-100 tracking-tight">
+            Tallózás
+          </h3>
+          <p className="text-xs text-zinc-400 font-normal">
+            {t.dragDropText}
+          </p>
         </div>
       </div>
 
