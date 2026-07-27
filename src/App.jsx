@@ -51,20 +51,17 @@ export default function App() {
         }
       },
       (receivedFileData) => {
-        // If this is the 1st file of a new incoming package batch, start fresh!
         if (receivedFileData.currentIndex === 1) {
           setReceivedFiles([receivedFileData]);
         } else {
           setReceivedFiles((prev) => [...prev, receivedFileData]);
         }
         
-        // If all files in batch have arrived, clear transferState
         if (receivedFileData.currentIndex >= receivedFileData.totalFiles) {
           setTransferState(null);
         }
       },
       (promptInfo) => {
-        // Always trigger fresh modal prompt even for back-to-back transfers
         setIncomingPrompt({ ...promptInfo });
       },
       (rejectedPeerId) => {
@@ -89,7 +86,6 @@ export default function App() {
     };
   }, []);
 
-  // Force cache-busting reload button action for PWA standalone app mode
   const handleForceAppReload = () => {
     setIsRefreshing(true);
     
@@ -104,7 +100,6 @@ export default function App() {
     }, 200);
   };
 
-  // Accept incoming transfer prompt -> clear previous batch so new batch starts fresh!
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
       setReceivedFiles([]);
@@ -113,7 +108,6 @@ export default function App() {
     }
   };
 
-  // Reject incoming transfer prompt
   const handleRejectIncoming = () => {
     if (incomingPrompt) {
       peerNetworkService.rejectIncoming(incomingPrompt.fromPeerId);
@@ -121,7 +115,6 @@ export default function App() {
     }
   };
 
-  // Sender cancels proposed transfer to a specific target peer before receiver accepts
   const handleCancelProposedSend = (targetPeerId) => {
     peerNetworkService.cancelProposedSend(targetPeerId);
     setPendingSendPeers((prev) => {
@@ -132,7 +125,6 @@ export default function App() {
     setTimeout(() => setAlertMsg(null), 2500);
   };
 
-  // Send files to specific target peer
   const handleSendToPeer = async (targetPeerId) => {
     if (filesToSend.length === 0) {
       setAlertMsg(t.selectFilesWarning);
@@ -144,7 +136,6 @@ export default function App() {
     setFilesToSend([]);
   };
 
-  // Send files to ALL online peers
   const handleSendToAll = async () => {
     if (filesToSend.length === 0) {
       setAlertMsg(t.selectFilesWarning);
@@ -164,7 +155,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)]">
       
-      {/* Header Bar: Empty Left Side, Top Right Action Controls: Status -> QR -> Refresh */}
+      {/* Header Bar */}
       <Header
         isConnected={isConnected}
         onOpenQr={() => setShowQrModal(true)}
@@ -172,17 +163,17 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 flex flex-col gap-6">
+      {/* Main Ultra-Compact Container */}
+      <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
         
         {/* Warning Toast */}
         {alertMsg && (
-          <div className="w-full p-4 rounded-2xl bg-zinc-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
+          <div className="w-full p-3 rounded-xl bg-zinc-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
             {alertMsg}
           </div>
         )}
 
-        {/* 1. File Selector Component (Top) */}
+        {/* 1. File Selector Component (Ultra Compact) */}
         <FilePicker
           lang={lang}
           files={filesToSend}
@@ -217,7 +208,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-zinc-800 py-6 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
+      <footer className="w-full border-t border-zinc-800/80 py-4 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
         <span>Airdrop by Dufi</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
