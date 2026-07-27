@@ -31,6 +31,7 @@ class PeerNetworkService {
     this.receiveStartTimes = new Map();
     this.pendingTransferFiles = new Map();
     this.activeSendCancellations = new Map();
+    this.handledTransferIds = new Set();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -262,8 +263,13 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header
+        // Sender proposed transfer header (with deduplication guard)
         if (msg.type === 'propose_transfer') {
+          const transferKey = `${fromPeerId}_${msg.transferId}`;
+          if (this.handledTransferIds.has(transferKey)) return;
+          this.handledTransferIds.add(transferKey);
+          setTimeout(() => this.handledTransferIds.delete(transferKey), 10000);
+
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
@@ -400,7 +406,7 @@ class PeerNetworkService {
     this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer with connection retry guarantee
+  // Propose transfer to target peer with 3x retry delivery guarantee
   async sendFilesToPeer(targetPeerId, fileList) {
     let conn = this.connections.get(targetPeerId);
     
@@ -425,17 +431,24 @@ class PeerNetworkService {
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Send proposed transfer payload cleanly
-    try {
-      conn.send(JSON.stringify({
-        type: 'propose_transfer',
-        transferId: Date.now(),
-        totalFiles: fileList.length,
-        fileName: fileList[0]?.name || 'Fájl',
-        fileNames: Array.from(fileList).map((f) => f.name)
-      }));
-    } catch (err) {
-      console.error('Error sending propose_transfer:', err);
+    const transferId = Date.now();
+
+    // Send proposed transfer payload 3 times with 250ms interval to guarantee delivery
+    for (let i = 0; i < 3; i++) {
+      if (this.activeSendCancellations.get(targetPeerId)) break;
+      const currentConn = this.connections.get(targetPeerId);
+      if (currentConn && currentConn.open) {
+        try {
+          currentConn.send(JSON.stringify({
+            type: 'propose_transfer',
+            transferId,
+            totalFiles: fileList.length,
+            fileName: fileList[0]?.name || 'Fájl',
+            fileNames: Array.from(fileList).map((f) => f.name)
+          }));
+        } catch (err) {}
+      }
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
 
@@ -537,6 +550,7 @@ class PeerNetworkService {
     this.receiveStartTimes.clear();
     this.pendingTransferFiles.clear();
     this.activeSendCancellations.clear();
+    this.handledTransferIds.clear();
   }
 }
 

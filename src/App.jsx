@@ -172,9 +172,9 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative">
       
-      {/* Floating Top Overlay Toast Notification (Zero Layout Shift!) */}
+      {/* Floating Top Overlay Toast Notification (100% Centered Horizontally on Mobile & PC) */}
       {alertMsg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md p-3.5 rounded-2xl bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center shadow-2xl animate-fade-in pointer-events-none">
+        <div className="fixed top-4 inset-x-0 mx-auto z-50 w-[90%] max-w-sm p-3.5 rounded-2xl bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center shadow-2xl animate-fade-in pointer-events-none">
           {alertMsg}
         </div>
       )}
