@@ -42,6 +42,12 @@ export default function App() {
       (progressData) => {
         setTransferState(progressData);
         setPendingSendPeers(new Set());
+
+        // Clear filesToSend queue ONLY when transfer actually starts streaming!
+        if (progressData && progressData.direction === 'send' && progressData.progress > 0) {
+          setFilesToSend([]);
+        }
+
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
           setTimeout(() => {
             setTransferState(null);
@@ -77,6 +83,7 @@ export default function App() {
         setTimeout(() => setAlertMsg(null), 3500);
       },
       (cancelledPeerId) => {
+        // Instantly dismiss incoming prompt modal on receiver when sender cancels transfer!
         setIncomingPrompt(null);
         setAlertMsg('A küldő visszavonta az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3000);
@@ -152,7 +159,7 @@ export default function App() {
     }
     setPendingSendPeers((prev) => new Set(prev).add(targetPeerId));
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
-    setFilesToSend([]);
+    // Files remain queued until transfer starts streaming!
   };
 
   const handleSendToAll = async () => {
@@ -164,7 +171,7 @@ export default function App() {
     const allPeerIds = peerList.filter((p) => !p.isSelf).map((p) => p.id);
     setPendingSendPeers(new Set(allPeerIds));
     await peerNetworkService.sendFilesToAll(filesToSend);
-    setFilesToSend([]);
+    // Files remain queued until transfer starts streaming!
   };
 
   const handleClearReceived = () => {
