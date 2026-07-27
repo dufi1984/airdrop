@@ -21,13 +21,13 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     return Array.from(map.values());
   }, [receivedFiles]);
 
-  // Clean Save/Download Handler
+  // Bulletproof Save/Download Handler for ALL devices
   const handleSaveOrDownloadAll = async () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
 
     const fileList = uniqueReceivedFiles.map((item) => item.file);
 
-    // 1. On Mobile (iPhone / Android): ONLY open the native bottom Share Panel (No 'Elindítja az új letöltést' dialog!)
+    // 1. On Mobile: Try Native Share Sheet first
     if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
@@ -37,12 +37,11 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         });
         return;
       } catch (err) {
-        console.log('User dismissed native share panel:', err);
-        return;
+        console.log('Native share panel bypassed or cancelled, executing direct download fallback:', err);
       }
     }
 
-    // 2. On Desktop PC: Direct file download loop into Downloads folder
+    // 2. Direct Download Fallback for Android Chrome & PC
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -133,7 +132,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
           {isMobile
-            ? 'Koppints a gombra, majd a felugró menüben válaszd a "Képek mentése" opciót!'
+            ? 'Koppints a gombra a mentéshez, vagy töltsd le őket egyesével az alábbi gombokkal!'
             : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
         </span>
       </p>
@@ -146,7 +145,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
           {isMobile
-            ? `Mentés mindet a Galériába (${uniqueReceivedFiles.length})`
+            ? `Mentés mindet (${uniqueReceivedFiles.length})`
             : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
         </span>
       </button>
@@ -162,7 +161,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
-      {/* Collapsible Thumbnails */}
+      {/* Collapsible Thumbnails with EVERYWHERE Visible Individual Download Buttons */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
@@ -181,6 +180,16 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
                   </p>
                 </div>
               </div>
+
+              {/* ALWAYS Visible Individual File Download Button */}
+              <a
+                href={item.blobUrl}
+                download={item.name}
+                className="p-2.5 rounded-xl bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 transition-all shrink-0 flex items-center justify-center shadow-sm"
+                title="Fájl letöltése külön"
+              >
+                <Download className="w-4 h-4 text-blue-400" />
+              </a>
             </div>
           ))}
         </div>
