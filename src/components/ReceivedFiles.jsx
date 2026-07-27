@@ -6,21 +6,17 @@ import { formatBytes } from '../utils/formatters';
 export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) {
   const t = translations[lang];
   const containerRef = useRef(null);
+  const autoTriggeredRef = useRef(false);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-  useEffect(() => {
-    if (receivedFiles && receivedFiles.length > 0 && containerRef.current) {
-      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [receivedFiles]);
-
-  if (!receivedFiles || receivedFiles.length === 0) return null;
-
+  // Auto-save / Auto-download function
   const handleSaveOrDownloadAll = async () => {
+    if (!receivedFiles || receivedFiles.length === 0) return;
     const fileList = receivedFiles.map((item) => item.file);
 
+    // 1. On Mobile: Auto-popup Web Share API sheet to export photos to Photo Gallery
     if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
       try {
         await navigator.share({
@@ -30,10 +26,11 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         });
         return;
       } catch (err) {
-        console.log('User cancelled Web Share API:', err);
+        console.log('User dismissed Web Share API:', err);
       }
     }
 
+    // 2. On Desktop PC / Fallback: Automatic direct batch download into Downloads folder
     receivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const a = document.createElement('a');
@@ -45,6 +42,27 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       }, index * 250);
     });
   };
+
+  // Auto-scroll and automatically trigger save/download upon batch completion
+  useEffect(() => {
+    if (receivedFiles && receivedFiles.length > 0) {
+      if (containerRef.current) {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      // Auto-trigger save/download ONCE automatically as soon as package arrives
+      if (!autoTriggeredRef.current) {
+        autoTriggeredRef.current = true;
+        setTimeout(() => {
+          handleSaveOrDownloadAll();
+        }, 500);
+      }
+    } else {
+      autoTriggeredRef.current = false;
+    }
+  }, [receivedFiles]);
+
+  if (!receivedFiles || receivedFiles.length === 0) return null;
 
   const getMediaPreview = (item) => {
     if (item.mimeType.startsWith('image/')) {
@@ -102,15 +120,15 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
 
       {/* Notice Bar */}
       <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
           {isMobile
-            ? 'Koppints a gombra a kapott fotók/videók 1-kattintásos mentéséhez a mobilod Képgalériájába!'
-            : 'Kattints a gombra az összes fogadott fájl letöltéséhez a géped Letöltések mappájába!'}
+            ? '⚡ Az átvétel befejeződött: a mentés ablak automatikusan felugrott!'
+            : '⚡ Az átvétel befejeződött: a fájlok letöltése automatikusan elindult a gépedre!'}
         </span>
       </p>
 
-      {/* Main Action Button (Material Blue Gradient) */}
+      {/* Manual Backup Action Button (In case user wants to re-trigger or share again) */}
       <button
         onClick={handleSaveOrDownloadAll}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40"
@@ -118,8 +136,8 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
         <span>
           {isMobile
-            ? `Mentés mindet a Galériába (${receivedFiles.length})`
-            : `Mindet Letöltése a gépre (${receivedFiles.length})`}
+            ? `Mentés újra a Galériába (${receivedFiles.length})`
+            : `Letöltés újra a gépre (${receivedFiles.length})`}
         </span>
       </button>
 
