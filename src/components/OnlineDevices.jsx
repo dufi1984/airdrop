@@ -66,7 +66,7 @@ export default function OnlineDevices({
       {/* Vertical Stack of Uniform Device Cards */}
       <div className="flex flex-col gap-2.5">
         
-        {/* 1. Self Device Card */}
+        {/* 1. Self Device Card (Left: Device Name, Right: Ez az eszköz Badge) */}
         <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 shadow-sm">
           <div className="flex items-center gap-3 min-w-0 pr-2">
             <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
@@ -78,9 +78,6 @@ export default function OnlineDevices({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
-              {t.readyForReceiving}
-            </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-medium">
               Ez az eszköz
             </span>
