@@ -63,13 +63,12 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-6 border border-zinc-700/60 transition-all">
       
-      {/* Raw original media picker input for unlimited file sizes */}
+      {/* Clean universal file input (Opens direct Android Media / Photo Gallery picker without duplicate Camera options) */}
       <input
         type="file"
         ref={inputRef}
         onChange={handleFileChange}
         multiple
-        accept="image/*,video/*,audio/*,.heic,.heif,.mov,.mp4,.m4v,.zip,.pdf,.doc,.docx,*/*"
         className="hidden"
       />
 

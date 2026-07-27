@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Share2, Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Film, FileText, CheckCircle2, Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -34,27 +34,6 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         document.body.removeChild(link);
       }, index * 350);
     });
-  };
-
-  // Native Share Sheet trigger for iOS / Android
-  const handleShareAll = async () => {
-    if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
-    const fileList = uniqueReceivedFiles.map((item) => item.file);
-
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
-      try {
-        await navigator.share({
-          files: fileList,
-          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-          text: 'Fájlok mentése az Airdrop alkalmazással',
-        });
-        return;
-      } catch (err) {
-        console.log('Native share panel cancelled:', err);
-      }
-    }
-    // Fallback to direct download if share fails
-    handleDirectDownloadAll();
   };
 
   // Auto-scroll and trigger batch download ONCE on PC only
@@ -138,28 +117,14 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </span>
       </p>
 
-      {/* Dual Buttons for Mobile (Direct Download + Native Share) */}
-      <div className="flex flex-col sm:flex-row gap-3 w-full">
-        {/* Main Direct Download Button */}
-        <button
-          onClick={handleDirectDownloadAll}
-          className="flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
-        >
-          <Download className="w-5 h-5" />
-          <span>Mindet Letöltése ({uniqueReceivedFiles.length})</span>
-        </button>
-
-        {/* Mobile Share Sheet Option */}
-        {isMobile && (
-          <button
-            onClick={handleShareAll}
-            className="py-3.5 px-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs border border-white/15 flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0"
-          >
-            <Share2 className="w-4.5 h-4.5 text-blue-400" />
-            <span>Megosztás menü</span>
-          </button>
-        )}
-      </div>
+      {/* Main Action Button (Single Clean Full Width Download Button) */}
+      <button
+        onClick={handleDirectDownloadAll}
+        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
+      >
+        <Download className="w-5 h-5" />
+        <span>Mindet Letöltése ({uniqueReceivedFiles.length})</span>
+      </button>
 
       {/* Collapsible Gallery Toggle */}
       <div className="flex items-center justify-between pt-1 border-t border-white/10">
