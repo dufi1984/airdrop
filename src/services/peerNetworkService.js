@@ -136,7 +136,7 @@ class PeerNetworkService {
     if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 2000); // Probe every 2 seconds for instant peer discovery
+    }, 2000);
   }
 
   probeOtherSlots() {
@@ -400,30 +400,43 @@ class PeerNetworkService {
     this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer
+  // Propose transfer to target peer with connection retry guarantee
   async sendFilesToPeer(targetPeerId, fileList) {
     let conn = this.connections.get(targetPeerId);
     
-    // Auto-reconnect DataChannel if connection was closed or disconnected
+    // If no connection exists or connection is not fully open, attempt connection & await open
     if (!conn || !conn.open) {
       this.connectToSlot(targetPeerId);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      conn = this.connections.get(targetPeerId);
+      
+      // Wait up to 2.5 seconds for connection channel to open cleanly
+      for (let attempt = 0; attempt < 25; attempt++) {
+        await new Promise((r) => setTimeout(r, 100));
+        conn = this.connections.get(targetPeerId);
+        if (conn && conn.open) break;
+      }
     }
 
-    if (!conn || !conn.open) return;
+    if (!conn || !conn.open) {
+      console.warn('Unable to connect to target peer:', targetPeerId);
+      if (this.onRejected) this.onRejected(targetPeerId);
+      return;
+    }
 
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Propose transfer with timestamp & full list of file names
-    conn.send(JSON.stringify({
-      type: 'propose_transfer',
-      transferId: Date.now(),
-      totalFiles: fileList.length,
-      fileName: fileList[0].name,
-      fileNames: Array.from(fileList).map((f) => f.name)
-    }));
+    // Send proposed transfer payload cleanly
+    try {
+      conn.send(JSON.stringify({
+        type: 'propose_transfer',
+        transferId: Date.now(),
+        totalFiles: fileList.length,
+        fileName: fileList[0]?.name || 'Fájl',
+        fileNames: Array.from(fileList).map((f) => f.name)
+      }));
+    } catch (err) {
+      console.error('Error sending propose_transfer:', err);
+    }
   }
 
   async sendFilesToAll(fileList) {
