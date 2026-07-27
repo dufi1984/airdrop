@@ -69,7 +69,7 @@ export default function App() {
       (rejectedPeerId) => {
         setTransferState(null);
         setPendingSendPeers((prev) => {
-          const next = new Set(prev);
+          const next = new Set(prev instanceof Set ? prev : []);
           next.delete(rejectedPeerId);
           return next;
         });
@@ -130,12 +130,17 @@ export default function App() {
   };
 
   const handleCancelProposedSend = (targetPeerId) => {
-    peerNetworkService.cancelProposedSend(targetPeerId);
+    try {
+      peerNetworkService.cancelProposedSend(targetPeerId);
+    } catch (err) {
+      console.warn('Cancel proposed send error:', err);
+    }
     setPendingSendPeers((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev instanceof Set ? prev : []);
       next.delete(targetPeerId);
+      return next;
     });
-    setAlertMsg('Visszavontad a küldést.');
+    setAlertMsg('Küldés visszavonva.');
     setTimeout(() => setAlertMsg(null), 2500);
   };
 

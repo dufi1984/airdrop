@@ -15,6 +15,9 @@ export default function OnlineDevices({
 }) {
   const t = translations[lang];
 
+  // Defensive fallback for pendingSendPeers Set
+  const safePendingSet = pendingSendPeers instanceof Set ? pendingSendPeers : new Set();
+
   // Helper to pick normalized device icon
   const getDeviceIcon = (deviceType) => {
     const typeStr = String(deviceType || '');
@@ -30,8 +33,8 @@ export default function OnlineDevices({
     return <Smartphone className="w-4.5 h-4.5 text-zinc-100" />;
   };
 
-  const otherPeers = peerList.filter((p) => !p.isSelf);
-  const myDevice = peerList.find((p) => p.isSelf);
+  const otherPeers = (peerList || []).filter((p) => !p.isSelf);
+  const myDevice = (peerList || []).find((p) => p.isSelf);
   const myDeviceName = myDevice?.deviceType || myDevice?.deviceInfo || myDevice?.name || detectDeviceName();
 
   return (
@@ -63,9 +66,8 @@ export default function OnlineDevices({
       {/* Vertical Stack of Uniform Device Cards */}
       <div className="flex flex-col gap-2.5">
         
-        {/* 1. Self Device Card (Left: Device Name in bold white, Right: Status & Badge) */}
+        {/* 1. Self Device Card */}
         <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 shadow-sm">
-          {/* Left Side: Icon + Explicit Device Name */}
           <div className="flex items-center gap-3 min-w-0 pr-2">
             <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
               {getDeviceIcon(myDeviceName)}
@@ -75,7 +77,6 @@ export default function OnlineDevices({
             </span>
           </div>
 
-          {/* Right Side: Status Text + Clean Matte Green Badge */}
           <div className="flex items-center gap-2.5 shrink-0">
             <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
               {t.readyForReceiving}
@@ -86,9 +87,9 @@ export default function OnlineDevices({
           </div>
         </div>
 
-        {/* 2. Other Online Devices Cards (Left: Name, Right: Send Button - Cleaned up redundant Online text) */}
+        {/* 2. Other Online Devices Cards */}
         {otherPeers.map((peer) => {
-          const isPending = pendingSendPeers.has(peer.id);
+          const isPending = safePendingSet.has(peer.id);
           const peerDeviceName = peer.deviceType || peer.deviceInfo || peer.name || 'Online eszköz';
 
           return (
@@ -100,7 +101,6 @@ export default function OnlineDevices({
                   : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
               }`}
             >
-              {/* Left Side: Icon + Explicit Remote Device Name */}
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                   {getDeviceIcon(peerDeviceName)}
@@ -117,7 +117,7 @@ export default function OnlineDevices({
                     onClick={() => onCancelSendToPeer(peer.id)}
                     className="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium transition-all cursor-pointer"
                   >
-                    Mégse
+                    Küldés visszavonása
                   </button>
                 ) : (
                   <button
