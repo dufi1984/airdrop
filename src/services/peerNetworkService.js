@@ -2,7 +2,7 @@ import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
-const MAX_SLOTS = 6;
+const MAX_SLOTS = 10;
 const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 class PeerNetworkService {
@@ -34,6 +34,15 @@ class PeerNetworkService {
 
     this.probeTimer = null;
     this.isDestroyed = false;
+
+    // Fast reconnect when user switches back to app tab
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          this.probeOtherSlots();
+        }
+      });
+    }
   }
 
   init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected, onCancelled) {
@@ -96,6 +105,7 @@ class PeerNetworkService {
           this.handleIncomingConnection(conn);
         });
 
+        // Instant discovery probe
         this.startProbing();
       });
 
@@ -123,9 +133,10 @@ class PeerNetworkService {
 
   startProbing() {
     this.probeOtherSlots();
+    if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 4000);
+    }, 2000); // Probe every 2 seconds for instant peer discovery
   }
 
   probeOtherSlots() {
@@ -136,6 +147,13 @@ class PeerNetworkService {
 
       const targetSlotId = `${SLOT_PREFIX}${i}`;
       const existingConn = this.connections.get(targetSlotId);
+
+      // Clean up stale or closed connections
+      if (existingConn && !existingConn.open) {
+        this.connections.delete(targetSlotId);
+        this.onlineDevices.delete(targetSlotId);
+      }
+
       if (!existingConn || !existingConn.open) {
         this.connectToSlot(targetSlotId);
       }
@@ -261,7 +279,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer before receiver accepted
+        // Sender cancelled proposed transfer before receiver accepts
         if (msg.type === 'cancel_proposed_transfer') {
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
