@@ -23,8 +23,23 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
 
   const isReceivingActive = transferState && transferState.direction === 'receive';
   const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
+  const isComplete = !isReceivingActive && uniqueReceivedFiles.length >= totalExpectedFiles;
 
   // Main Action: Save ALL files to Photo Gallery on Mobile (via Native Share Panel) or Download on PC
+  const handleDirectDownloadAll = () => {
+    if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
+    uniqueReceivedFiles.forEach((item, index) => {
+      setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = item.blobUrl;
+        link.download = item.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, index * 350);
+    });
+  };
+
   const handleSaveOrDownloadAll = async () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
     const fileList = uniqueReceivedFiles.map((item) => item.file);
@@ -39,24 +54,14 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
             text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
           });
         } catch (err) {
-          console.log('User dismissed native share panel:', err);
+          console.log('User cancelled native share panel:', err);
         }
       }
-      // On mobile, if dismissed or unsupported, silently stop without triggering Chrome bottom download bar
       return;
     }
 
     // 2. Direct Download ONLY for Desktop PC
-    uniqueReceivedFiles.forEach((item, index) => {
-      setTimeout(() => {
-        const link = document.createElement('a');
-        link.href = item.blobUrl;
-        link.download = item.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }, index * 350);
-    });
+    handleDirectDownloadAll();
   };
 
   // Single Item Action: Save 1 file to Photo Gallery on Mobile or Download on PC
@@ -70,10 +75,9 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
             text: 'Kép mentése a galériába',
           });
         } catch (err) {
-          console.log('User dismissed single item share:', err);
+          console.log('User cancelled single item share:', err);
         }
       }
-      // On mobile, if dismissed or unsupported, silently stop without triggering Chrome bottom download bar
       return;
     }
 
@@ -86,22 +90,22 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     document.body.removeChild(link);
   };
 
-  // Auto-scroll and trigger batch download ONCE on PC only
+  // Auto-scroll and trigger batch download ONCE on PC only when ALL files in the package have completely arrived!
   useEffect(() => {
     if (uniqueReceivedFiles.length > 0 && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
       
-      if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
+      if (!isMobile && isComplete && autoTriggeredBatchIdRef.current !== batchId) {
         autoTriggeredBatchIdRef.current = batchId;
         const timer = setTimeout(() => {
-          handleSaveOrDownloadAll();
-        }, 500);
+          handleDirectDownloadAll();
+        }, 300);
         return () => clearTimeout(timer);
       }
     }
-  }, [uniqueReceivedFiles, isMobile]);
+  }, [uniqueReceivedFiles, isMobile, isComplete]);
 
   if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return null;
 
