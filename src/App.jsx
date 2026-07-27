@@ -152,6 +152,7 @@ export default function App() {
     }
     setPendingSendPeers((prev) => new Set(prev).add(targetPeerId));
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
+    // Keep filesToSend queue intact so files can be sent to other devices or re-sent after cancellation!
   };
 
   const handleSendToAll = async () => {
@@ -163,6 +164,7 @@ export default function App() {
     const allPeerIds = peerList.filter((p) => !p.isSelf).map((p) => p.id);
     setPendingSendPeers(new Set(allPeerIds));
     await peerNetworkService.sendFilesToAll(filesToSend);
+    // Keep filesToSend queue intact!
   };
 
   const handleClearReceived = () => {
@@ -170,15 +172,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)]">
       
-      {/* Floating Top Overlay Toast Notification (100% Centered Horizontally on Mobile & PC) */}
-      {alertMsg && (
-        <div className="fixed top-4 inset-x-0 mx-auto z-50 w-[90%] max-w-sm p-3.5 rounded-2xl bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center shadow-2xl animate-fade-in pointer-events-none">
-          {alertMsg}
-        </div>
-      )}
-
       {/* Header Bar */}
       <Header
         isConnected={isConnected}
@@ -187,8 +182,15 @@ export default function App() {
         isRefreshing={isRefreshing}
       />
 
-      {/* Main Container */}
+      {/* Main Container with Responsive Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
+        
+        {/* Warning Toast */}
+        {alertMsg && (
+          <div className="w-full p-3 rounded-xl bg-zinc-900/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center animate-bounce shadow-xl">
+            {alertMsg}
+          </div>
+        )}
 
         {/* 1. File Selector Component (Top on ALL devices) */}
         <FilePicker

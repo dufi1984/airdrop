@@ -3,7 +3,7 @@ import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 10;
-const SLOT_PREFIX = 'airdrop-v7-'; // Fresh clean slot namespace
+const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 class PeerNetworkService {
   constructor() {
@@ -136,7 +136,7 @@ class PeerNetworkService {
     if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 2000);
+    }, 2000); // Probe every 2 seconds for instant peer discovery
   }
 
   probeOtherSlots() {
@@ -180,33 +180,35 @@ class PeerNetworkService {
   }
 
   setupConnectionEvents(conn) {
-    const handleOpen = () => {
-      console.log(`🤝 Connected with ${conn.peer}`);
-      
+    // Immediately set connection in map
+    this.connections.set(conn.peer, conn);
+
+    const updatePeerInfo = () => {
       const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
-      this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
         id: conn.peer,
         deviceInfo: peerDeviceInfo,
         deviceType: peerDeviceInfo,
         name: peerDeviceInfo
       });
-
-      try {
-        conn.send(JSON.stringify({
-          type: 'handshake',
-          deviceInfo: this.myDeviceName,
-          deviceType: this.myDeviceName
-        }));
-      } catch (e) {}
-
       this.notifyDevicesUpdate();
     };
 
     if (conn.open) {
-      handleOpen();
+      updatePeerInfo();
     } else {
-      conn.on('open', handleOpen);
+      conn.on('open', () => {
+        console.log(`🤝 Connected with ${conn.peer}`);
+        updatePeerInfo();
+
+        try {
+          conn.send(JSON.stringify({
+            type: 'handshake',
+            deviceInfo: this.myDeviceName,
+            deviceType: this.myDeviceName
+          }));
+        } catch (e) {}
+      });
     }
 
     conn.on('data', (data) => {
@@ -268,8 +270,9 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header
+        // Sender proposed transfer header -> TRIGGER POPUP IMMEDIATELY!
         if (msg.type === 'propose_transfer') {
+          console.log(`📩 Incoming transfer proposed from ${fromPeerId}:`, msg);
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
@@ -285,7 +288,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer
+        // Sender cancelled proposed transfer before receiver accepts
         if (msg.type === 'cancel_proposed_transfer') {
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
@@ -301,7 +304,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Receiver rejected transfer -> cancel sending!
+        // Receiver rejected transfer -> immediately cancel sending!
         if (msg.type === 'reject_transfer') {
           this.pendingTransferFiles.delete(fromPeerId);
           this.activeSendCancellations.set(fromPeerId, true);
@@ -363,7 +366,7 @@ class PeerNetworkService {
       const speed = elapsed > 0 ? currentBytes / elapsed : 0;
       const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((offset / header.size) * 100));
+      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
@@ -396,70 +399,61 @@ class PeerNetworkService {
     }
   }
 
-  // Cancel proposed transfer
+  // Cancel proposed transfer before receiver accepts
   cancelProposedSend(targetPeerId) {
-    this.pendingTransferFiles.delete(targetPeerId);
-    this.activeSendCancellations.set(targetPeerId, true);
-
     const conn = this.connections.get(targetPeerId);
     if (conn && conn.open) {
-      try {
-        conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
-      } catch (e) {}
+      conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
     }
+    this.pendingTransferFiles.delete(targetPeerId);
+    this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer with automatic WebRTC channel connection retry
+  // Propose transfer to target peer with guaranteed connection wait
   async sendFilesToPeer(targetPeerId, fileList) {
-    if (!fileList || fileList.length === 0) return;
-
     let conn = this.connections.get(targetPeerId);
     
-    // If connection is missing or closed, connect now and await open
+    // Auto-reconnect or wait for DataChannel to open
     if (!conn || !conn.open) {
-      if (!this.peer || this.peer.destroyed) return;
-
-      try {
-        conn = this.peer.connect(targetPeerId, {
-          metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
-          reliable: true
-        });
-        this.setupConnectionEvents(conn);
-      } catch (e) {}
-
-      // Wait up to 3 seconds for channel to open
-      for (let attempt = 0; attempt < 30; attempt++) {
-        if (conn && conn.open) break;
-        await new Promise((r) => setTimeout(r, 100));
+      this.connectToSlot(targetPeerId);
+      
+      // Wait up to 3000ms for connection to open
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
         conn = this.connections.get(targetPeerId);
+        if (conn && conn.open) break;
       }
     }
 
     if (!conn || !conn.open) {
-      console.warn('Unable to open WebRTC connection to peer:', targetPeerId);
-      return;
+      console.warn('Could not establish WebRTC connection to peer:', targetPeerId);
+      return false;
     }
 
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
     try {
+      // Propose transfer with timestamp & full list of file names
       conn.send(JSON.stringify({
         type: 'propose_transfer',
         transferId: Date.now(),
         totalFiles: fileList.length,
-        fileName: fileList[0]?.name || 'Fájl',
+        fileName: fileList[0].name,
         fileNames: Array.from(fileList).map((f) => f.name)
       }));
+      console.log(`✅ propose_transfer sent to ${targetPeerId}`);
+      return true;
     } catch (err) {
-      console.error('Error sending propose_transfer:', err);
+      console.error('Failed to send propose_transfer message:', err);
+      return false;
     }
   }
 
-  sendFilesToAll(fileList) {
+  async sendFilesToAll(fileList) {
     const activePeers = Array.from(this.connections.keys());
     for (const peerId of activePeers) {
-      this.sendFilesToPeer(peerId, fileList);
+      await this.sendFilesToPeer(peerId, fileList);
     }
   }
 
