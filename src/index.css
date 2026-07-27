@@ -31,7 +31,21 @@
   background: #52525b;
 }
 
-/* Glass & Card Panels (No text glow, razor sharp high contrast) */
+/* Custom Dashed Border Dropzone (2px width, 20% opacity white, 12px radius, solid #3B82F6 on hover/active) */
+.dropzone-dashed {
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dropzone-dashed:hover,
+.dropzone-dashed.is-dragging {
+  border-style: solid !important;
+  border-color: #3B82F6 !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Glass & Card Panels */
 .glass-panel-glow {
   background: rgba(24, 24, 27, 0.95);
   backdrop-filter: blur(12px);

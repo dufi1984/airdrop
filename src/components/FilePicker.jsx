@@ -80,16 +80,14 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Drop Zone Box with Title & Subtitle inside next to Icon */}
+      {/* Custom Dashed Border Dropzone Box */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-5 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
-          isDragging
-            ? 'border-blue-400 bg-blue-500/10'
-            : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
+        className={`w-full py-5 px-6 min-h-[90px] dropzone-dashed bg-zinc-950/80 flex items-center justify-center gap-3.5 cursor-pointer group ${
+          isDragging ? 'is-dragging' : ''
         }`}
       >
         <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
@@ -144,10 +142,10 @@ export default function FilePicker({ lang, files, setFiles }) {
             ))}
           </div>
 
-          {/* Guidance Banner */}
+          {/* Guidance Infobox Banner */}
           <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-medium">
             <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
-            <span>Koppints az Online Eszköz kártyára a küldés elindításához!</span>
+            <span>Válaszd ki az eszközt a küldéshez</span>
           </div>
         </div>
       )}
