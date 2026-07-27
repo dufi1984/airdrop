@@ -86,7 +86,13 @@ export default function App() {
     };
   }, []);
 
+  // Force cache-busting reload button action with safety check if files are queued
   const handleForceAppReload = () => {
+    if (filesToSend.length > 0) {
+      const confirmReload = window.confirm('Biztosan frissíted az appot? A kijelölt fájlok sora törlődni fog.');
+      if (!confirmReload) return;
+    }
+
     setIsRefreshing(true);
     
     if ('caches' in window) {
