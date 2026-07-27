@@ -73,7 +73,7 @@ export default function App() {
         setIncomingPrompt(null);
         setTimeout(() => {
           setIncomingPrompt({ ...promptInfo });
-        }, 15);
+        }, 20);
       },
       (rejectedPeerId) => {
         setTransferState(null);
@@ -127,6 +127,7 @@ export default function App() {
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
       setReceivedFiles([]);
+      setTransferState(null);
       peerNetworkService.acceptIncoming(incomingPrompt.fromPeerId);
       setIncomingPrompt(null);
     }
@@ -242,7 +243,7 @@ export default function App() {
         <Heart className="w-3 h-3 text-rose-500/80 fill-rose-500/80" />
       </footer>
 
-      {/* Phone Call Style Incoming Prompt Modal Prompt */}
+      {/* Phone Call Style Incoming Prompt Modal Prompt (Top z-index layer z-[9999]) */}
       {incomingPrompt && (
         <IncomingPromptModal
           lang={lang}

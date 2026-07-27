@@ -12,7 +12,7 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
   const listToRender = fileNames && fileNames.length > 0 ? fileNames : [fileName];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md animate-fade-in">
       <div className="w-full max-w-sm bg-zinc-900/95 rounded-2xl p-6 flex flex-col items-center text-center gap-5 border border-zinc-800 shadow-2xl relative max-h-[90vh] overflow-hidden">
         
         {/* Top Icon */}
