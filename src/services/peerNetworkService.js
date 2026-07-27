@@ -244,13 +244,17 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header -> Trigger incoming prompt modal!
+        // Sender proposed transfer header -> Reset states and trigger prompt modal!
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = msg.senderName || senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
+          
+          this.activeSendCancellations.delete(fromPeerId);
+          this.cleanIncomingState(fromPeerId);
+
           if (this.onIncomingPrompt) {
             this.onIncomingPrompt({
-              transferId: msg.transferId || Date.now(),
+              transferId: msg.transferId || (Date.now() + Math.random()),
               fromPeerId,
               senderName,
               totalFiles: msg.totalFiles,
@@ -263,6 +267,7 @@ class PeerNetworkService {
 
         // Sender cancelled proposed transfer before receiver accepts
         if (msg.type === 'cancel_proposed_transfer') {
+          this.cleanIncomingState(fromPeerId);
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
         }
@@ -376,10 +381,12 @@ class PeerNetworkService {
   cancelProposedSend(targetPeerId) {
     const conn = this.connections.get(targetPeerId);
     if (conn && conn.open) {
-      conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
+      try {
+        conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
+      } catch (e) {}
     }
     this.pendingTransferFiles.delete(targetPeerId);
-    this.activeSendCancellations.set(targetPeerId, true);
+    this.activeSendCancellations.delete(targetPeerId);
   }
 
   // Propose transfer to target peer (with 1.5s connection retry wait loop and explicit sender name payload)

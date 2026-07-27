@@ -70,7 +70,10 @@ export default function App() {
       (promptInfo) => {
         // Automatically close QR code modal if open, so incoming prompt is immediately visible!
         setShowQrModal(false);
-        setIncomingPrompt({ ...promptInfo });
+        setIncomingPrompt(null);
+        setTimeout(() => {
+          setIncomingPrompt({ ...promptInfo });
+        }, 15);
       },
       (rejectedPeerId) => {
         setTransferState(null);
