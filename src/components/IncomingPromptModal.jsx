@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, XCircle, Package, Maximize2, Minimize2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onReject }) {
@@ -41,10 +41,19 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition-colors cursor-pointer"
             >
-              <span>{isExpanded ? 'Elrejtés' : 'Fájllista'}</span>
-              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {isExpanded ? (
+                <>
+                  <span>Összecsukás</span>
+                  <Minimize2 className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Bővebben</span>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
           </div>
 
