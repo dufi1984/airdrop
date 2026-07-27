@@ -181,7 +181,7 @@ class PeerNetworkService {
   }
 
   setupConnectionEvents(conn) {
-    conn.on('open', () => {
+    const handleOpen = () => {
       console.log(`🤝 Connected with ${conn.peer}`);
       
       const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
@@ -202,8 +202,16 @@ class PeerNetworkService {
       } catch (e) {}
 
       this.notifyDevicesUpdate();
-    });
+    };
 
+    // Attach open handler immediately or execute if already open
+    if (conn.open) {
+      handleOpen();
+    } else {
+      conn.on('open', handleOpen);
+    }
+
+    // Always attach data, close, and error listeners immediately
     conn.on('data', (data) => {
       this.handleIncomingData(conn.peer, data);
     });
@@ -373,8 +381,8 @@ class PeerNetworkService {
           progress,
           speed,
           eta,
-          currentIndex: header.currentIndex,
-          totalFiles: header.totalFiles
+          currentIndex,
+          totalFiles
         });
       }
     }
