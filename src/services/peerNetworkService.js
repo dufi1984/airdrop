@@ -124,7 +124,7 @@ class PeerNetworkService {
     this.probeOtherSlots();
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 5000);
+    }, 4000);
   }
 
   probeOtherSlots() {
@@ -134,7 +134,8 @@ class PeerNetworkService {
       if (i === this.mySlotIndex) continue;
 
       const targetSlotId = `${SLOT_PREFIX}${i}`;
-      if (!this.connections.has(targetSlotId)) {
+      const existingConn = this.connections.get(targetSlotId);
+      if (!existingConn || !existingConn.open) {
         this.connectToSlot(targetSlotId);
       }
     }
@@ -236,6 +237,7 @@ class PeerNetworkService {
           const senderInfo = this.onlineDevices.get(fromPeerId);
           if (this.onIncomingPrompt) {
             this.onIncomingPrompt({
+              transferId: msg.transferId || Date.now(),
               fromPeerId,
               senderName: senderInfo ? senderInfo.deviceInfo : 'Online Eszköz',
               totalFiles: msg.totalFiles,
@@ -293,6 +295,8 @@ class PeerNetworkService {
                 name: header.name,
                 size: header.size,
                 mimeType: header.mimeType,
+                currentIndex: header.currentIndex || 1,
+                totalFiles: header.totalFiles || 1,
                 fromPeerId
               });
             }
@@ -367,15 +371,24 @@ class PeerNetworkService {
 
   // Propose transfer to target peer
   async sendFilesToPeer(targetPeerId, fileList) {
-    const conn = this.connections.get(targetPeerId);
+    let conn = this.connections.get(targetPeerId);
+    
+    // Auto-reconnect DataChannel if connection was closed or disconnected
+    if (!conn || !conn.open) {
+      this.connectToSlot(targetPeerId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      conn = this.connections.get(targetPeerId);
+    }
+
     if (!conn || !conn.open) return;
 
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Propose transfer with full list of file names
+    // Propose transfer with timestamp & full list of file names
     conn.send(JSON.stringify({
       type: 'propose_transfer',
+      transferId: Date.now(),
       totalFiles: fileList.length,
       fileName: fileList[0].name,
       fileNames: Array.from(fileList).map((f) => f.name)

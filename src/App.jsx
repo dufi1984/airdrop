@@ -52,12 +52,17 @@ export default function App() {
         }
       },
       (receivedFileData) => {
-        // Add file to current batch
-        setReceivedFiles((prev) => [...prev, receivedFileData]);
+        // If this is the 1st file of a new incoming package batch, start fresh!
+        if (receivedFileData.currentIndex === 1) {
+          setReceivedFiles([receivedFileData]);
+        } else {
+          setReceivedFiles((prev) => [...prev, receivedFileData]);
+        }
         setTransferState(null);
       },
       (promptInfo) => {
-        setIncomingPrompt(promptInfo);
+        // Always trigger fresh modal prompt even for back-to-back transfers
+        setIncomingPrompt({ ...promptInfo });
       },
       (rejectedPeerId) => {
         setTransferState(null);
@@ -96,10 +101,10 @@ export default function App() {
     }, 200);
   };
 
-  // Accept incoming transfer prompt -> reset received files for fresh new package batch
+  // Accept incoming transfer prompt -> clear previous batch so new batch starts fresh!
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
-      setReceivedFiles([]); // Clear previous batch so new batch starts fresh!
+      setReceivedFiles([]);
       peerNetworkService.acceptIncoming(incomingPrompt.fromPeerId);
       setIncomingPrompt(null);
     }
