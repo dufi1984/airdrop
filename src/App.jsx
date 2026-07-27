@@ -97,7 +97,7 @@ export default function App() {
     }
 
     if (filesToSend.length > 0) {
-      const confirmReload = window.confirm('Biztosan frissíted az appot? A kijelölt fájlok sora törlődni fog.');
+      const confirmReload = window.confirm('A kijelölt fájlok törlődnek.');
       if (!confirmReload) return;
     }
 
