@@ -1,5 +1,5 @@
 import React from 'react';
-import { Smartphone, Monitor, CheckCircle2, Send, Users, XCircle, Clock } from 'lucide-react';
+import { Smartphone, Monitor, Tablet, Send, X, Wifi } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 export default function OnlineDevices({
@@ -10,116 +10,143 @@ export default function OnlineDevices({
   pendingSendPeers,
   onSendToPeer,
   onSendToAll,
-  onCancelSendToPeer
+  onCancelSendToPeer,
 }) {
   const t = translations[lang];
 
-  const getDeviceIcon = (deviceInfo) => {
-    if (deviceInfo && (deviceInfo.includes('iPhone') || deviceInfo.includes('Android') || deviceInfo.includes('iPad'))) {
-      return <Smartphone className="w-5 h-5 text-blue-400" />;
+  // Helper to pick normalized device icon
+  const getDeviceIcon = (deviceType) => {
+    switch (deviceType) {
+      case 'iPhone':
+      case 'Android telefon':
+        return <Smartphone className="w-5 h-5 text-zinc-100" />;
+      case 'iPad':
+      case 'Android tablet':
+        return <Tablet className="w-5 h-5 text-zinc-100" />;
+      case 'MacBook / Mac':
+      case 'Windows PC':
+      case 'Linux PC':
+        return <Monitor className="w-5 h-5 text-zinc-100" />;
+      default:
+        return <Smartphone className="w-5 h-5 text-zinc-100" />;
     }
-    return <Monitor className="w-5 h-5 text-cyan-400" />;
   };
 
   const otherPeers = peerList.filter((p) => !p.isSelf);
+  const myDevice = peerList.find((p) => p.isSelf);
 
   return (
-    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-5 border border-zinc-600/70 shadow-xl">
+    <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-6 border border-zinc-700/80 shadow-2xl">
       
-      {/* Header Row */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-          <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
-            {t.onlineDevicesTitle}
-          </h3>
-        </div>
+        <h2 className="text-base sm:text-lg font-bold text-zinc-100 tracking-tight">
+          {t.onlineDevicesTitle}
+        </h2>
 
         {/* Send to All Button */}
-        {hasFilesSelected && otherPeers.length > 1 && (
+        {otherPeers.length > 1 && (
           <button
             onClick={onSendToAll}
-            className="py-2 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 transition-all active:scale-95 border border-blue-400/40"
+            disabled={!hasFilesSelected}
+            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 ${
+              hasFilesSelected
+                ? 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/40 cursor-pointer active:scale-95'
+                : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed'
+            }`}
           >
-            <Users className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
             <span>{t.sendToAllDevices}</span>
           </button>
         )}
       </div>
 
-      {/* Online Devices List with Uniform Dark Fill & Matching Borders */}
+      {/* Vertical Stack of Uniform Device Cards */}
       <div className="flex flex-col gap-3">
-        {peerList.map((device) => {
-          const isPending = pendingSendPeers && pendingSendPeers.has(device.id);
+        
+        {/* 1. Self Device Card */}
+        {myDevice && (
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-950/90 border border-zinc-600/80 shadow-md">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shrink-0">
+                {getDeviceIcon(myDevice.deviceType)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-zinc-100 truncate">
+                    {myDevice.deviceType}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
+                    Ez az eszköz
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 font-medium">
+                  {t.readyForReceiving}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Other Online Devices Cards */}
+        {otherPeers.map((peer) => {
+          const isPending = pendingSendPeers.has(peer.id);
 
           return (
             <div
-              key={device.id}
-              className={`w-full p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+              key={peer.id}
+              className={`flex items-center justify-between p-4 rounded-2xl border transition-all shadow-md ${
                 isPending
-                  ? 'bg-blue-500/20 border-blue-400/80 shadow-lg'
-                  : 'bg-zinc-950/90 border-zinc-600/80 hover:border-blue-400 shadow-md'
+                  ? 'bg-blue-950/40 border-blue-500/60'
+                  : 'bg-zinc-950/90 border-zinc-600/80 hover:border-zinc-500'
               }`}
             >
-              {/* Clean Device Info */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-400/40 shrink-0">
-                  {getDeviceIcon(device.deviceInfo)}
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shrink-0">
+                  {getDeviceIcon(peer.deviceType)}
                 </div>
-                <div className="flex items-center gap-2.5 truncate">
-                  <p className="text-sm font-extrabold text-zinc-100 truncate">
-                    {device.deviceInfo}
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-zinc-100 truncate block">
+                    {peer.deviceType}
+                  </span>
+                  <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                    <Wifi className="w-3 h-3 animate-pulse" />
+                    <span>Online</span>
                   </p>
-                  {device.isSelf && (
-                    <span className="text-[10px] bg-blue-500/25 text-blue-300 font-extrabold px-2 py-0.5 rounded-md border border-blue-400/50 shrink-0">
-                      {t.thisDevice}
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {/* Status / Action Buttons */}
-              {device.isSelf ? (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold bg-emerald-500/20 px-3 py-1.5 rounded-xl border border-emerald-400/50 self-end sm:self-center shadow-sm">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t.readyForReceiving}</span>
-                </div>
-              ) : isPending ? (
-                /* Pending Approval state */
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-400/50 animate-pulse">
-                    <Clock className="w-4 h-4 text-amber-400" />
-                    <span>Várakozás elfogadásra...</span>
-                  </div>
+              {/* Action Button */}
+              <div>
+                {isPending ? (
                   <button
-                    onClick={() => onCancelSendToPeer(device.id)}
-                    className="py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1 transition-all active:scale-95 shadow-md border border-rose-400/50"
-                    title="Visszavonás erről az eszközről"
+                    onClick={() => onCancelSendToPeer(peer.id)}
+                    className="py-2 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    title="Küldés visszavonása"
                   >
-                    <XCircle className="w-4 h-4" />
-                    <span>Visszavonás</span>
+                    <X className="w-3.5 h-3.5" />
+                    <span>Mégse</span>
                   </button>
-                </div>
-              ) : (
-                /* Send to this device button */
-                <button
-                  onClick={() => onSendToPeer(device.id)}
-                  className={`w-full sm:w-auto py-2.5 px-4 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md border ${
-                    hasFilesSelected
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white border-blue-400/60 hover:opacity-95 shadow-blue-500/30 animate-pulse'
-                      : 'bg-zinc-800 text-zinc-200 border-zinc-600/80 hover:text-white hover:bg-zinc-700'
-                  }`}
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{t.sendToThisDevice}</span>
-                </button>
-              )}
-
+                ) : (
+                  <button
+                    onClick={() => onSendToPeer(peer.id)}
+                    disabled={!hasFilesSelected}
+                    className={`py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+                      hasFilesSelected
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 cursor-pointer active:scale-95'
+                        : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Küldés</span>
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
-      </div>
 
+      </div>
     </div>
   );
 }

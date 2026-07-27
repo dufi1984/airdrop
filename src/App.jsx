@@ -4,7 +4,6 @@ import FilePicker from './components/FilePicker';
 import OnlineDevices from './components/OnlineDevices';
 import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
-import ServerConfigModal from './components/ServerConfigModal';
 import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
@@ -13,7 +12,7 @@ import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
 export default function App() {
-  const [lang, setLang] = useState('hu');
+  const [lang] = useState('hu');
   const [isConnected, setIsConnected] = useState(false);
   const [peerList, setPeerList] = useState([]);
   
@@ -22,7 +21,6 @@ export default function App() {
   const [transferState, setTransferState] = useState(null);
   const [pendingSendPeers, setPendingSendPeers] = useState(new Set());
 
-  const [showSettings, setShowSettings] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [incomingPrompt, setIncomingPrompt] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
@@ -129,7 +127,6 @@ export default function App() {
     setPendingSendPeers((prev) => {
       const next = new Set(prev);
       next.delete(targetPeerId);
-      return next;
     });
     setAlertMsg('Visszavontad a küldést.');
     setTimeout(() => setAlertMsg(null), 2500);
@@ -165,15 +162,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white pb-[env(safe-area-inset-bottom,0px)]">
       
-      {/* Header Bar with Action Button Row: Status -> QR -> Refresh -> Settings */}
+      {/* Header Bar: Empty Left Side, Top Right Action Controls: Status -> QR -> Refresh */}
       <Header
-        lang={lang}
         isConnected={isConnected}
-        onlineCount={peerList.length}
         onOpenQr={() => setShowQrModal(true)}
-        onOpenSettings={() => setShowSettings(true)}
         onForceReload={handleForceAppReload}
         isRefreshing={isRefreshing}
       />
@@ -207,7 +201,7 @@ export default function App() {
           onCancelSendToPeer={handleCancelProposedSend}
         />
 
-        {/* Active Transfer Progress Banner (Positioned directly under Online Devices!) */}
+        {/* Active Transfer Progress Banner */}
         {transferState && (
           <TransferProgress lang={lang} transferState={transferState} />
         )}
@@ -223,7 +217,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-white/10 py-6 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
+      <footer className="w-full border-t border-zinc-800 py-6 text-center text-xs text-zinc-400 flex items-center justify-center gap-1.5 font-medium">
         <span>Airdrop by Dufi</span>
         <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
       </footer>
@@ -243,15 +237,6 @@ export default function App() {
         <QrModal
           lang={lang}
           onClose={() => setShowQrModal(false)}
-        />
-      )}
-
-      {/* Server & Language Settings Modal */}
-      {showSettings && (
-        <ServerConfigModal
-          lang={lang}
-          setLang={setLang}
-          onClose={() => setShowSettings(false)}
         />
       )}
 

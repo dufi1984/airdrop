@@ -115,7 +115,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         <img
           src={item.blobUrl}
           alt={item.name}
-          className="w-14 h-14 object-cover rounded-xl border border-white/10 shrink-0"
+          className="w-14 h-14 object-cover rounded-xl border border-zinc-700/80 shrink-0"
         />
       );
     }
@@ -148,7 +148,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
           </div>
           <div>
             <div className="flex items-baseline gap-1.5">
-              <h3 className="text-base sm:text-lg font-extrabold text-zinc-100">
+              <h3 className="text-base sm:text-lg font-bold text-zinc-100">
                 {t.receivedPackageTitle}
               </h3>
               <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-400">
@@ -166,7 +166,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         {/* Dismiss Button */}
         <button
           onClick={onClearReceived}
-          className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-white/10 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+          className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-zinc-700/80 transition-colors flex items-center gap-1.5 text-xs font-semibold"
           title={t.rejectPackage}
         >
           <X className="w-4 h-4" />
@@ -175,8 +175,8 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
       </div>
 
       {/* Notice Bar */}
-      <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+      <p className="text-xs text-zinc-300 bg-zinc-950/90 p-3.5 rounded-2xl border border-zinc-700/80 flex items-center gap-2 font-medium">
+        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
         <span>
           {isMobile
             ? 'Koppints a kék gombra a mentéshez, vagy töltsd le a fájlokat egyesével az alábbi 📥 ikonokkal!'
@@ -184,12 +184,12 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </span>
       </p>
 
-      {/* Main Action Button (Sentence Case Typography) */}
+      {/* Main Action Button */}
       <button
         onClick={handleSaveOrDownloadAll}
-        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
+        className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 cursor-pointer"
       >
-        <Download className="w-5 h-5" />
+        <Download className="w-5 h-5 text-white" />
         <span>
           {isMobile
             ? `Mentés mindet a galériába (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
@@ -198,10 +198,10 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
       </button>
 
       {/* Collapsible Gallery Toggle */}
-      <div className="flex items-center justify-between pt-1 border-t border-white/10">
+      <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-xs font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
         >
           <span>{isExpanded ? t.hidePhotos : t.viewPhotos} ({uniqueReceivedFiles.length}/{totalExpectedFiles})</span>
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -214,27 +214,27 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
           {uniqueReceivedFiles.map((item, index) => (
             <div
               key={index}
-              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 shadow-md"
+              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-950/90 border border-zinc-700/80 shadow-md"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {getMediaPreview(item)}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-extrabold text-zinc-100 truncate">
+                  <p className="text-xs font-bold text-zinc-100 truncate">
                     {item.name}
                   </p>
-                  <p className="text-[11px] text-zinc-400">
+                  <p className="text-[11px] text-zinc-400 font-medium">
                     {formatBytes(item.size)}
                   </p>
                 </div>
               </div>
 
-              {/* ALWAYS Visible Download Icon Button */}
+              {/* High Contrast Individual Item Download Button */}
               <button
                 onClick={() => handleSaveSingleItem(item)}
-                className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
+                className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 hover:bg-zinc-800 hover:border-zinc-500 hover:text-white transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
                 title={isMobile ? "Mentés a galériába" : "Fájl letöltése külön"}
               >
-                <Download className="w-4.5 h-4.5 text-blue-300" />
+                <Download className="w-4.5 h-4.5 text-zinc-100" />
               </button>
             </div>
           ))}
