@@ -60,7 +60,7 @@ export default function FilePicker({ lang, files, setFiles }) {
   };
 
   return (
-    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 flex flex-col gap-3.5 border border-zinc-800 shadow-xl transition-all">
+    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
       
       {/* Strict Photo & Video Gallery Input */}
       <input
@@ -74,29 +74,29 @@ export default function FilePicker({ lang, files, setFiles }) {
 
       {/* Reassuring Large File Toast */}
       {largeFileNotice && (
-        <div className="w-full p-2.5 rounded-xl bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold flex items-center justify-center gap-2 shadow-lg animate-pulse">
+        <div className="w-full p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-medium flex items-center justify-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
           <span>{largeFileNotice}</span>
         </div>
       )}
 
-      {/* Ultra Compact Drag & Drop Zone */}
+      {/* Ultra Compact Drag & Drop Zone (Flat styling, zero text glow) */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-3.5 px-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
+        className={`w-full py-3 px-4 rounded-xl border border-dashed transition-all flex items-center justify-center gap-3 cursor-pointer group ${
           isDragging
-            ? 'border-blue-400 bg-blue-500/20 scale-[0.99]'
+            ? 'border-blue-400 bg-blue-500/10'
             : 'border-zinc-700 bg-zinc-950/80 hover:border-blue-500 hover:bg-zinc-950'
         }`}
       >
-        <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-          <FolderSearch className="w-5 h-5 text-blue-400" />
+        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+          <FolderSearch className="w-4.5 h-4.5 text-blue-400" />
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-          <h3 className="text-sm font-bold text-zinc-100">
+          <h3 className="text-sm font-bold text-zinc-100 tracking-normal">
             Tallózás
           </h3>
           <span className="text-xs text-zinc-400 font-normal">
@@ -145,8 +145,8 @@ export default function FilePicker({ lang, files, setFiles }) {
           </div>
 
           {/* Guidance Banner */}
-          <div className="p-2.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-semibold">
-            <ArrowDown className="w-3.5 h-3.5 animate-bounce text-blue-400" />
+          <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300 flex items-center justify-center gap-2 font-medium">
+            <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
             <span>Koppints az alábbi Online Eszköz kártyára a küldés elindításához!</span>
           </div>
         </div>
