@@ -66,7 +66,7 @@ export default function OnlineDevices({
       {/* Vertical Stack of Uniform Device Cards */}
       <div className="flex flex-col gap-2.5">
         
-        {/* 1. Self Device Card (Left: Device Name, Right: Ez az eszköz Badge) */}
+        {/* 1. Self Device Card */}
         <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 shadow-sm">
           <div className="flex items-center gap-3 min-w-0 pr-2">
             <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
@@ -134,6 +134,13 @@ export default function OnlineDevices({
             </div>
           );
         })}
+
+        {/* 3. Clean Empty Notice when no other peers are online */}
+        {otherPeers.length === 0 && (
+          <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-zinc-800/50 text-xs text-zinc-400 font-normal text-center">
+            {t.noOtherDevices}
+          </div>
+        )}
 
       </div>
     </div>
