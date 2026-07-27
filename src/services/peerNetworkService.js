@@ -3,7 +3,7 @@ import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 6;
-const SLOT_PREFIX = 'airdrop-p2p-v6-';
+const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 class PeerNetworkService {
   constructor() {
@@ -123,10 +123,9 @@ class PeerNetworkService {
 
   startProbing() {
     this.probeOtherSlots();
-    if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 3000);
+    }, 4000);
   }
 
   probeOtherSlots() {
@@ -163,18 +162,8 @@ class PeerNetworkService {
   }
 
   setupConnectionEvents(conn) {
-    const peerId = conn.peer;
-
-    // Deduplicate connection: if we already have a functional open connection with this peer, keep existing!
-    const existingConn = this.connections.get(peerId);
-    if (existingConn && existingConn.open && existingConn !== conn) {
-      console.log(`ℹ️ Duplicate connection with ${peerId}, keeping active primary channel.`);
-      try { conn.close(); } catch (e) {}
-      return;
-    }
-
     conn.on('open', () => {
-      console.log(`🤝 Connected WebRTC DataChannel with ${conn.peer}`);
+      console.log(`🤝 Connected with ${conn.peer}`);
       
       const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       this.connections.set(conn.peer, conn);
@@ -185,7 +174,6 @@ class PeerNetworkService {
         name: peerDeviceInfo
       });
 
-      // Immediate handshake exchange
       try {
         conn.send(JSON.stringify({
           type: 'handshake',
@@ -202,21 +190,17 @@ class PeerNetworkService {
     });
 
     conn.on('close', () => {
-      if (this.connections.get(conn.peer) === conn) {
-        this.connections.delete(conn.peer);
-        this.onlineDevices.delete(conn.peer);
-        this.cleanIncomingState(conn.peer);
-        this.notifyDevicesUpdate();
-      }
+      this.connections.delete(conn.peer);
+      this.onlineDevices.delete(conn.peer);
+      this.cleanIncomingState(conn.peer);
+      this.notifyDevicesUpdate();
     });
 
     conn.on('error', () => {
-      if (this.connections.get(conn.peer) === conn) {
-        this.connections.delete(conn.peer);
-        this.onlineDevices.delete(conn.peer);
-        this.cleanIncomingState(conn.peer);
-        this.notifyDevicesUpdate();
-      }
+      this.connections.delete(conn.peer);
+      this.onlineDevices.delete(conn.peer);
+      this.cleanIncomingState(conn.peer);
+      this.notifyDevicesUpdate();
     });
   }
 
@@ -260,7 +244,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header -> triggers incoming prompt on receiver!
+        // Sender proposed transfer header -> Trigger incoming prompt modal!
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
@@ -277,7 +261,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer before receiver accepted
+        // Sender cancelled proposed transfer before receiver accepts
         if (msg.type === 'cancel_proposed_transfer') {
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
@@ -398,15 +382,18 @@ class PeerNetworkService {
     this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer
+  // Propose transfer to target peer (with 1.5s connection retry wait loop)
   async sendFilesToPeer(targetPeerId, fileList) {
     let conn = this.connections.get(targetPeerId);
     
     // Auto-reconnect DataChannel if connection was closed or disconnected
     if (!conn || !conn.open) {
       this.connectToSlot(targetPeerId);
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      conn = this.connections.get(targetPeerId);
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        conn = this.connections.get(targetPeerId);
+        if (conn && conn.open) break;
+      }
     }
 
     if (!conn || !conn.open) return;
