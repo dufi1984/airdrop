@@ -30,20 +30,23 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     const fileList = uniqueReceivedFiles.map((item) => item.file);
 
     // 1. On Mobile (iPhone / Android): Open Native Bottom Panel to Save to Photo Gallery
-    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
-      try {
-        await navigator.share({
-          files: fileList,
-          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-          text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
-        });
-        return;
-      } catch (err) {
-        console.log('User cancelled native share panel:', err);
+    if (isMobile) {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
+        try {
+          await navigator.share({
+            files: fileList,
+            title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
+            text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
+          });
+        } catch (err) {
+          console.log('User dismissed native share panel:', err);
+        }
       }
+      // On mobile, if dismissed or unsupported, silently stop without triggering Chrome bottom download bar
+      return;
     }
 
-    // 2. Direct Download Fallback for PC
+    // 2. Direct Download ONLY for Desktop PC
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -58,19 +61,23 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
 
   // Single Item Action: Save 1 file to Photo Gallery on Mobile or Download on PC
   const handleSaveSingleItem = async (item) => {
-    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
-      try {
-        await navigator.share({
-          files: [item.file],
-          title: item.name,
-          text: 'Kép mentése a galériába',
-        });
-        return;
-      } catch (err) {
-        console.log('User cancelled single item share:', err);
+    if (isMobile) {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
+        try {
+          await navigator.share({
+            files: [item.file],
+            title: item.name,
+            text: 'Kép mentése a galériába',
+          });
+        } catch (err) {
+          console.log('User dismissed single item share:', err);
+        }
       }
+      // On mobile, if dismissed or unsupported, silently stop without triggering Chrome bottom download bar
+      return;
     }
 
+    // Direct Download ONLY for Desktop PC
     const link = document.createElement('a');
     link.href = item.blobUrl;
     link.download = item.name;
@@ -210,7 +217,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-extrabold text-zinc-100 truncate">
                     {item.name}
-                  </name>
+                  </p>
                   <p className="text-[11px] text-zinc-400">
                     {formatBytes(item.size)}
                   </p>
