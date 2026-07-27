@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { X, Copy, Check } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 
 export default function QrModal({ onClose }) {
   const canvasRef = useRef(null);
@@ -27,10 +27,14 @@ export default function QrModal({ onClose }) {
     }
   }, [currentUrl]);
 
-  const handleCopyLink = () => {
+  const handleCopyLink = (e) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(currentUrl);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      setCopied(false);
+      onClose();
+    }, 400);
   };
 
   return (
@@ -39,29 +43,15 @@ export default function QrModal({ onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in cursor-pointer"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[280px] bg-zinc-900/95 rounded-2xl p-5 flex flex-col items-center text-center gap-4 border border-zinc-800 shadow-2xl relative cursor-default"
+        onClick={onClose}
+        className="w-full max-w-[240px] bg-zinc-900/95 rounded-2xl p-4 flex flex-col items-center text-center gap-3 border border-zinc-800 shadow-2xl cursor-pointer"
       >
-        {/* Header */}
-        <div className="w-full flex items-center justify-between">
-          <h3 className="text-sm font-bold text-zinc-100 tracking-tight">
-            QR-kód
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-            title="Bezárás"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Ultra Clean QR Code Container */}
+        {/* Ultra Clean Minimal QR Code Canvas */}
         <div className="p-2.5 bg-white rounded-xl shadow-md border border-zinc-700">
           <canvas ref={canvasRef} className="rounded-lg block" />
         </div>
 
-        {/* Clean Copy URL Action Button */}
+        {/* Clean Copy URL Button */}
         <button
           onClick={handleCopyLink}
           className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
@@ -78,7 +68,6 @@ export default function QrModal({ onClose }) {
             </>
           )}
         </button>
-
       </div>
     </div>
   );
