@@ -3,7 +3,7 @@ import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 10;
-const SLOT_PREFIX = 'airdrop-p2p-v5-';
+const SLOT_PREFIX = 'airdrop-v7-'; // Fresh clean slot namespace
 
 class PeerNetworkService {
   constructor() {
@@ -250,7 +250,7 @@ class PeerNetworkService {
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
 
-  // Handle WebRTC DataChannel message parser (Clean, Pure, Unblocked)
+  // Handle WebRTC DataChannel message parser
   handleIncomingData(fromPeerId, data) {
     if (typeof data === 'string') {
       try {
@@ -268,7 +268,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header -> Trigger prompt immediately!
+        // Sender proposed transfer header
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
@@ -285,7 +285,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer -> Unmount prompt immediately!
+        // Sender cancelled proposed transfer
         if (msg.type === 'cancel_proposed_transfer') {
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
@@ -363,7 +363,7 @@ class PeerNetworkService {
       const speed = elapsed > 0 ? currentBytes / elapsed : 0;
       const remainingBytes = header.size - currentBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
+      const progress = Math.min(100, Math.round((offset / header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
@@ -396,7 +396,7 @@ class PeerNetworkService {
     }
   }
 
-  // Cancel proposed transfer (Clean, Instant, Single payload)
+  // Cancel proposed transfer
   cancelProposedSend(targetPeerId) {
     this.pendingTransferFiles.delete(targetPeerId);
     this.activeSendCancellations.set(targetPeerId, true);
@@ -409,12 +409,34 @@ class PeerNetworkService {
     }
   }
 
-  // Propose transfer to target peer (Clean, Instant, Single payload)
-  sendFilesToPeer(targetPeerId, fileList) {
-    const conn = this.connections.get(targetPeerId);
+  // Propose transfer to target peer with automatic WebRTC channel connection retry
+  async sendFilesToPeer(targetPeerId, fileList) {
+    if (!fileList || fileList.length === 0) return;
+
+    let conn = this.connections.get(targetPeerId);
+    
+    // If connection is missing or closed, connect now and await open
     if (!conn || !conn.open) {
-      console.warn('Connection not open to target peer:', targetPeerId);
-      if (this.onRejected) this.onRejected(targetPeerId);
+      if (!this.peer || this.peer.destroyed) return;
+
+      try {
+        conn = this.peer.connect(targetPeerId, {
+          metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
+          reliable: true
+        });
+        this.setupConnectionEvents(conn);
+      } catch (e) {}
+
+      // Wait up to 3 seconds for channel to open
+      for (let attempt = 0; attempt < 30; attempt++) {
+        if (conn && conn.open) break;
+        await new Promise((r) => setTimeout(r, 100));
+        conn = this.connections.get(targetPeerId);
+      }
+    }
+
+    if (!conn || !conn.open) {
+      console.warn('Unable to open WebRTC connection to peer:', targetPeerId);
       return;
     }
 
