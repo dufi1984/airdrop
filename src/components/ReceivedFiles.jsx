@@ -23,9 +23,8 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
 
   const isReceivingActive = transferState && transferState.direction === 'receive';
   const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
-  const isComplete = !isReceivingActive && uniqueReceivedFiles.length >= totalExpectedFiles;
 
-  // Main Action: Save ALL files to Photo Gallery on Mobile (via Native Share Panel) or Download on PC
+  // Direct Batch Download for PC
   const handleDirectDownloadAll = () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
     uniqueReceivedFiles.forEach((item, index) => {
@@ -36,7 +35,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      }, index * 350);
+      }, index * 300);
     });
   };
 
@@ -90,22 +89,22 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     document.body.removeChild(link);
   };
 
-  // Auto-scroll and trigger batch download ONCE on PC only when ALL files in the package have completely arrived!
+  // Auto-scroll and trigger batch download ONCE on PC when files arrive
   useEffect(() => {
     if (uniqueReceivedFiles.length > 0 && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
       
-      if (!isMobile && isComplete && autoTriggeredBatchIdRef.current !== batchId) {
+      if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
         autoTriggeredBatchIdRef.current = batchId;
         const timer = setTimeout(() => {
           handleDirectDownloadAll();
-        }, 300);
+        }, 200);
         return () => clearTimeout(timer);
       }
     }
-  }, [uniqueReceivedFiles, isMobile, isComplete]);
+  }, [uniqueReceivedFiles, isMobile]);
 
   if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return null;
 
@@ -166,7 +165,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         {/* Dismiss Button */}
         <button
           onClick={onClearReceived}
-          className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-zinc-700/80 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+          className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-zinc-700/80 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
           title={t.rejectPackage}
         >
           <X className="w-4 h-4" />

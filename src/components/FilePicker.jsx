@@ -62,6 +62,11 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
       
+      {/* Section Header */}
+      <h2 className="text-base font-bold text-zinc-100 tracking-tight">
+        {t.selectFiles}
+      </h2>
+
       {/* Strict Photo & Video Gallery Input */}
       <input
         type="file"
@@ -80,7 +85,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Spacious Standard Height Drop Zone Box (py-6 = 24px top & 24px bottom padding) */}
+      {/* Spacious 90px Drop Zone Box */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
