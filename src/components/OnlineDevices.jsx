@@ -1,6 +1,7 @@
 import React from 'react';
-import { Smartphone, Monitor, Tablet, Send, X } from 'lucide-react';
+import { Smartphone, Monitor, Tablet, Send } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import { detectDeviceName } from '../utils/formatters';
 
 export default function OnlineDevices({
   lang,
@@ -16,24 +17,22 @@ export default function OnlineDevices({
 
   // Helper to pick normalized device icon
   const getDeviceIcon = (deviceType) => {
-    switch (deviceType) {
-      case 'iPhone':
-      case 'Android telefon':
-        return <Smartphone className="w-4.5 h-4.5 text-zinc-100" />;
-      case 'iPad':
-      case 'Android tablet':
-        return <Tablet className="w-4.5 h-4.5 text-zinc-100" />;
-      case 'MacBook / Mac':
-      case 'Windows PC':
-      case 'Linux PC':
-        return <Monitor className="w-4.5 h-4.5 text-zinc-100" />;
-      default:
-        return <Smartphone className="w-4.5 h-4.5 text-zinc-100" />;
+    const typeStr = String(deviceType || '');
+    if (/iPhone|Android telefon|Mobile/i.test(typeStr)) {
+      return <Smartphone className="w-4.5 h-4.5 text-zinc-100" />;
     }
+    if (/iPad|Tablet/i.test(typeStr)) {
+      return <Tablet className="w-4.5 h-4.5 text-zinc-100" />;
+    }
+    if (/Mac|Windows|Linux|PC|Monitor/i.test(typeStr)) {
+      return <Monitor className="w-4.5 h-4.5 text-zinc-100" />;
+    }
+    return <Smartphone className="w-4.5 h-4.5 text-zinc-100" />;
   };
 
   const otherPeers = peerList.filter((p) => !p.isSelf);
   const myDevice = peerList.find((p) => p.isSelf);
+  const myDeviceName = myDevice?.deviceType || myDevice?.name || detectDeviceName();
 
   return (
     <div className="w-full bg-zinc-900/90 rounded-2xl p-4 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
@@ -64,34 +63,33 @@ export default function OnlineDevices({
       {/* Vertical Stack of Uniform Device Cards */}
       <div className="flex flex-col gap-2.5">
         
-        {/* 1. Self Device Card (Left: Name, Right: Status & Badge) */}
-        {myDevice && (
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 shadow-sm">
-            {/* Left Side: Icon + Device Name */}
-            <div className="flex items-center gap-3 min-w-0 pr-2">
-              <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                {getDeviceIcon(myDevice.deviceType)}
-              </div>
-              <span className="text-sm font-bold text-zinc-100 truncate">
-                {myDevice.deviceType}
-              </span>
+        {/* 1. Self Device Card (Left: Device Name in bold white, Right: Status & Badge) */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-950/80 border border-zinc-800 shadow-sm">
+          {/* Left Side: Icon + Explicit Device Name */}
+          <div className="flex items-center gap-3 min-w-0 pr-2">
+            <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+              {getDeviceIcon(myDeviceName)}
             </div>
-
-            {/* Right Side: Status Text + Clean Matte Green Badge */}
-            <div className="flex items-center gap-2.5 shrink-0">
-              <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
-                {t.readyForReceiving}
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-medium">
-                Ez az eszköz
-              </span>
-            </div>
+            <span className="text-sm font-extrabold text-zinc-100 truncate tracking-wide">
+              {myDeviceName}
+            </span>
           </div>
-        )}
+
+          {/* Right Side: Status Text + Clean Matte Green Badge */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
+              {t.readyForReceiving}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-medium">
+              Ez az eszköz
+            </span>
+          </div>
+        </div>
 
         {/* 2. Other Online Devices Cards */}
         {otherPeers.map((peer) => {
           const isPending = pendingSendPeers.has(peer.id);
+          const peerDeviceName = peer.deviceType || peer.name || 'Online eszköz';
 
           return (
             <div
@@ -102,13 +100,13 @@ export default function OnlineDevices({
                   : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
               }`}
             >
-              {/* Left Side: Icon + Device Name */}
+              {/* Left Side: Icon + Explicit Device Name */}
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                  {getDeviceIcon(peer.deviceType)}
+                  {getDeviceIcon(peerDeviceName)}
                 </div>
-                <span className="text-sm font-bold text-zinc-100 truncate">
-                  {peer.deviceType}
+                <span className="text-sm font-extrabold text-zinc-100 truncate tracking-wide">
+                  {peerDeviceName}
                 </span>
               </div>
 

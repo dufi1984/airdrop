@@ -80,7 +80,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Ultra Compact Drag & Drop Zone (Flat styling, zero text glow) */}
+      {/* Ultra Compact Drag & Drop Zone */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -95,7 +95,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
           <FolderSearch className="w-4.5 h-4.5 text-blue-400" />
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
+        <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-zinc-100 tracking-normal">
             Tallózás
           </h3>
