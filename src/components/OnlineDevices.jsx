@@ -86,7 +86,7 @@ export default function OnlineDevices({
           </div>
         </div>
 
-        {/* 2. Other Online Devices Cards (Explicit Device Name e.g. "Windows PC" / "Android telefon" / "iPhone") */}
+        {/* 2. Other Online Devices Cards (Left: Name, Right: Send Button - Cleaned up redundant Online text) */}
         {otherPeers.map((peer) => {
           const isPending = pendingSendPeers.has(peer.id);
           const peerDeviceName = peer.deviceType || peer.deviceInfo || peer.name || 'Online eszköz';
@@ -110,11 +110,8 @@ export default function OnlineDevices({
                 </span>
               </div>
 
-              {/* Right Side: Online Status + Send Button */}
+              {/* Right Side: Action Button */}
               <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-xs text-emerald-400 font-medium hidden sm:inline">
-                  Online
-                </span>
                 {isPending ? (
                   <button
                     onClick={() => onCancelSendToPeer(peer.id)}
