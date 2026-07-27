@@ -59,8 +59,10 @@ export default function FilePicker({ lang, files, setFiles }) {
     return <FileText className="w-4 h-4 text-amber-400" />;
   };
 
+  const isEmpty = files.length === 0;
+
   return (
-    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl">
+    <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl transition-all">
       
       {/* Strict Photo & Video Gallery Input */}
       <input
@@ -80,23 +82,27 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Spacious Drop Zone Box */}
+      {/* Dynamic Custom Dashed Dropzone Box (2x taller when empty, compact when files queued) */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full py-5 px-6 min-h-[90px] rounded-xl border border-dashed transition-all flex items-center justify-center gap-3.5 cursor-pointer group ${
-          isDragging
-            ? 'border-blue-400 bg-blue-500/10'
-            : 'border-zinc-700 bg-zinc-950/80 hover:border-zinc-500 hover:bg-zinc-950'
-        }`}
+        className={`w-full dropzone-dashed bg-zinc-950/80 flex items-center justify-center gap-3.5 cursor-pointer group transition-all duration-200 ${
+          isEmpty
+            ? 'py-10 px-6 min-h-[160px]'
+            : 'py-4 px-5 min-h-[75px]'
+        } ${isDragging ? 'is-dragging' : ''}`}
       >
-        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-          <FolderSearch className="w-5 h-5 text-blue-400" />
+        <div className={`rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 transition-all ${
+          isEmpty ? 'w-12 h-12' : 'w-9 h-9'
+        }`}>
+          <FolderSearch className={`${isEmpty ? 'w-6 h-6' : 'w-4.5 h-4.5'} text-blue-400`} />
         </div>
         <div className="flex flex-col text-left">
-          <h3 className="text-sm sm:text-base font-extrabold text-zinc-100 tracking-tight">
+          <h3 className={`font-extrabold text-zinc-100 tracking-tight transition-all ${
+            isEmpty ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+          }`}>
             Tallózás
           </h3>
           <p className="text-xs text-zinc-400 font-normal">
@@ -106,8 +112,8 @@ export default function FilePicker({ lang, files, setFiles }) {
       </div>
 
       {/* Selected Files Queue (~3.2 items visible so 4th item is partially visible) */}
-      {files.length > 0 && (
-        <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800">
+      {!isEmpty && (
+        <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800 animate-fade-in">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
               {files.length} {t.filesSelected}
