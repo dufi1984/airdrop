@@ -389,43 +389,49 @@ class PeerNetworkService {
     this.activeSendCancellations.delete(targetPeerId);
   }
 
-  // Propose transfer to target peer (with 1.5s connection retry wait loop and explicit sender name payload)
+  // Propose transfer to target peer with automatic stale DataChannel recovery & retry loop
   async sendFilesToPeer(targetPeerId, fileList) {
-    let conn = this.connections.get(targetPeerId);
-    
-    // Auto-reconnect DataChannel if connection was closed or disconnected
-    if (!conn || !conn.open) {
-      this.connectToSlot(targetPeerId);
-      for (let attempt = 0; attempt < 15; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        conn = this.connections.get(targetPeerId);
-        if (conn && conn.open) break;
-      }
-    }
-
-    if (!conn || !conn.open) return;
-
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    // Send instant handshake refresh first so receiver knows exact sender device name
-    try {
-      conn.send(JSON.stringify({
-        type: 'handshake',
-        deviceInfo: this.myDeviceName,
-        deviceType: this.myDeviceName
-      }));
-    } catch (e) {}
-
-    // Propose transfer with timestamp, senderName & full list of file names
-    conn.send(JSON.stringify({
+    const payload = JSON.stringify({
       type: 'propose_transfer',
       transferId: Date.now() + Math.random(),
       senderName: this.myDeviceName,
       totalFiles: fileList.length,
       fileName: fileList[0].name,
       fileNames: Array.from(fileList).map((f) => f.name)
-    }));
+    });
+
+    let conn = this.connections.get(targetPeerId);
+    let sentSuccessfully = false;
+
+    // 1. Try sending over existing open DataChannel
+    if (conn && conn.open) {
+      try {
+        conn.send(payload);
+        sentSuccessfully = true;
+      } catch (err) {
+        console.warn('Existing DataChannel failed, reconnecting...', err);
+        this.connections.delete(targetPeerId);
+      }
+    }
+
+    // 2. If existing connection wasn't open or failed to send, recreate DataChannel and send!
+    if (!sentSuccessfully) {
+      this.connectToSlot(targetPeerId);
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        conn = this.connections.get(targetPeerId);
+        if (conn && conn.open) {
+          try {
+            conn.send(payload);
+            sentSuccessfully = true;
+            break;
+          } catch (e) {}
+        }
+      }
+    }
   }
 
   async sendFilesToAll(fileList) {
