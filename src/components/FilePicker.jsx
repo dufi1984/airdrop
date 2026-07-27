@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, Image, Film, FileText, Trash2, ArrowDown, CheckCircle2 } from 'lucide-react';
+import { FolderSearch, Image, Film, FileText, Trash2, ArrowDown, CheckCircle2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
@@ -81,7 +81,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         </div>
       )}
 
-      {/* Drag & Drop Zone */}
+      {/* Drag & Drop Zone with Folder Search Icon */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -94,7 +94,7 @@ export default function FilePicker({ lang, files, setFiles }) {
         }`}
       >
         <div className="w-14 h-14 rounded-2xl bg-blue-500/15 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-          <UploadCloud className="w-8 h-8 text-blue-400" />
+          <FolderSearch className="w-8 h-8 text-blue-400" />
         </div>
         <h3 className="text-lg sm:text-xl font-black text-zinc-100 mb-1 tracking-wide">
           Tallózás
