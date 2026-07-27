@@ -21,27 +21,9 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     return Array.from(map.values());
   }, [receivedFiles]);
 
-  // Bulletproof Save/Download Handler for ALL devices
-  const handleSaveOrDownloadAll = async () => {
+  // Direct Batch Download for ALL devices (Saves straight to Downloads folder)
+  const handleDirectDownloadAll = () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
-
-    const fileList = uniqueReceivedFiles.map((item) => item.file);
-
-    // 1. On Mobile: Try Native Share Sheet first
-    if (isMobile && navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
-      try {
-        await navigator.share({
-          files: fileList,
-          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-          text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
-        });
-        return;
-      } catch (err) {
-        console.log('Native share panel bypassed or cancelled, executing direct download fallback:', err);
-      }
-    }
-
-    // 2. Direct Download Fallback for Android Chrome & PC
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
         const link = document.createElement('a');
@@ -54,6 +36,27 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
     });
   };
 
+  // Native Share Sheet trigger for iOS / Android
+  const handleShareAll = async () => {
+    if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
+    const fileList = uniqueReceivedFiles.map((item) => item.file);
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
+      try {
+        await navigator.share({
+          files: fileList,
+          title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
+          text: 'Fájlok mentése az Airdrop alkalmazással',
+        });
+        return;
+      } catch (err) {
+        console.log('Native share panel cancelled:', err);
+      }
+    }
+    // Fallback to direct download if share fails
+    handleDirectDownloadAll();
+  };
+
   // Auto-scroll and trigger batch download ONCE on PC only
   useEffect(() => {
     if (uniqueReceivedFiles.length > 0 && containerRef.current) {
@@ -64,7 +67,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
         autoTriggeredBatchIdRef.current = batchId;
         const timer = setTimeout(() => {
-          handleSaveOrDownloadAll();
+          handleDirectDownloadAll();
         }, 500);
         return () => clearTimeout(timer);
       }
@@ -79,7 +82,7 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         <img
           src={item.blobUrl}
           alt={item.name}
-          className="w-14 h-14 object-cover rounded-xl border border-white/10"
+          className="w-14 h-14 object-cover rounded-xl border border-white/10 shrink-0"
         />
       );
     }
@@ -131,24 +134,32 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
       <p className="text-xs text-zinc-300 bg-zinc-900/90 p-3.5 rounded-2xl border border-white/10 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
         <span>
-          {isMobile
-            ? 'Koppints a gombra a mentéshez, vagy töltsd le őket egyesével az alábbi gombokkal!'
-            : '⚡ A letöltés elindult a Letöltések mappádba! Ha nem indult el mind, kattints az alábbi gombra!'}
+          Kattints a kék Letöltés gombra az összes fájl mentéséhez, vagy töltsd le őket egyesével az alábbi 📥 ikonokkal!
         </span>
       </p>
 
-      {/* Main Action Button */}
-      <button
-        onClick={handleSaveOrDownloadAll}
-        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
-      >
-        {isMobile ? <Share2 className="w-5 h-5" /> : <Download className="w-5 h-5" />}
-        <span>
-          {isMobile
-            ? `Mentés mindet (${uniqueReceivedFiles.length})`
-            : `Mindet Letöltése a gépre (${uniqueReceivedFiles.length})`}
-        </span>
-      </button>
+      {/* Dual Buttons for Mobile (Direct Download + Native Share) */}
+      <div className="flex flex-col sm:flex-row gap-3 w-full">
+        {/* Main Direct Download Button */}
+        <button
+          onClick={handleDirectDownloadAll}
+          className="flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 animate-pulse"
+        >
+          <Download className="w-5 h-5" />
+          <span>Mindet Letöltése ({uniqueReceivedFiles.length})</span>
+        </button>
+
+        {/* Mobile Share Sheet Option */}
+        {isMobile && (
+          <button
+            onClick={handleShareAll}
+            className="py-3.5 px-4 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs border border-white/15 flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0"
+          >
+            <Share2 className="w-4.5 h-4.5 text-blue-400" />
+            <span>Megosztás menü</span>
+          </button>
+        )}
+      </div>
 
       {/* Collapsible Gallery Toggle */}
       <div className="flex items-center justify-between pt-1 border-t border-white/10">
@@ -161,34 +172,34 @@ export default function ReceivedFiles({ lang, receivedFiles, onClearReceived }) 
         </button>
       </div>
 
-      {/* Collapsible Thumbnails with EVERYWHERE Visible Individual Download Buttons */}
+      {/* Collapsible Thumbnails with Prominent Individual Download Icons */}
       {isExpanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
           {uniqueReceivedFiles.map((item, index) => (
             <div
               key={index}
-              className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-zinc-900/90 border border-white/10"
+              className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 shadow-md"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {getMediaPreview(item)}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-zinc-100 truncate">
+                  <p className="text-xs font-extrabold text-zinc-100 truncate">
                     {item.name}
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-zinc-400">
                     {formatBytes(item.size)}
                   </p>
                 </div>
               </div>
 
-              {/* ALWAYS Visible Individual File Download Button */}
+              {/* ALWAYS Visible Prominent Individual File Download Button */}
               <a
                 href={item.blobUrl}
                 download={item.name}
-                className="p-2.5 rounded-xl bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/40 transition-all shrink-0 flex items-center justify-center shadow-sm"
+                className="p-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-500/50 text-blue-200 border border-blue-400/60 transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95"
                 title="Fájl letöltése külön"
               >
-                <Download className="w-4 h-4 text-blue-400" />
+                <Download className="w-4.5 h-4.5 text-blue-300" />
               </a>
             </div>
           ))}
