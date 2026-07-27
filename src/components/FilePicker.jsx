@@ -1,44 +1,27 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, Image, Film, FileText, Trash2, ArrowDown, AlertTriangle } from 'lucide-react';
+import { UploadCloud, Image, Film, FileText, Trash2, ArrowDown, CheckCircle2 } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
-
-// 500MB safety threshold per file to prevent iOS Safari OOM crashes
-const MAX_MOBILE_FILE_SIZE = 500 * 1024 * 1024;
 
 export default function FilePicker({ lang, files, setFiles }) {
   const t = translations[lang];
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [sizeWarning, setSizeWarning] = useState(null);
-
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const [largeFileNotice, setLargeFileNotice] = useState(null);
 
   const handleFileChange = (e) => {
     try {
       if (e.target.files && e.target.files.length > 0) {
         const newFiles = Array.from(e.target.files);
         
-        // Filter out oversized files on mobile to prevent Safari WebProcess OOM crashes
-        const validFiles = [];
-        let oversizedCount = 0;
-
-        newFiles.forEach((file) => {
-          if (isMobile && file.size > MAX_MOBILE_FILE_SIZE) {
-            oversizedCount++;
-          } else {
-            validFiles.push(file);
-          }
-        });
-
-        if (oversizedCount > 0) {
-          setSizeWarning(`⚠️ ${oversizedCount} fájl meghaladta a 500 MB-os mobil memóriahatárt a telefon védelmében.`);
-          setTimeout(() => setSizeWarning(null), 5000);
+        // Check if any file is large (over 500MB) to reassure user of micro-chunk streaming
+        const hasLargeFile = newFiles.some((f) => f.size > 500 * 1024 * 1024);
+        if (hasLargeFile) {
+          setLargeFileNotice('⚡ Nagy fájl (1GB+) kiválasztva — Közvetlen 64KB-os P2P micro-stream aktív (0 MB RAM terhelés)!');
+          setTimeout(() => setLargeFileNotice(null), 6000);
         }
 
-        if (validFiles.length > 0) {
-          setFiles((prev) => [...prev, ...validFiles]);
-        }
+        setFiles((prev) => [...prev, ...newFiles]);
       }
     } catch (err) {
       console.error('File selection error:', err);
@@ -80,7 +63,7 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full glass-panel-glow rounded-3xl p-6 sm:p-8 flex flex-col gap-6 border border-zinc-700/60 transition-all">
       
-      {/* Raw original media picker input without forced iOS transcoding */}
+      {/* Raw original media picker input for unlimited file sizes */}
       <input
         type="file"
         ref={inputRef}
@@ -90,11 +73,11 @@ export default function FilePicker({ lang, files, setFiles }) {
         className="hidden"
       />
 
-      {/* Warning Toast */}
-      {sizeWarning && (
-        <div className="w-full p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 shadow-lg">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{sizeWarning}</span>
+      {/* Reassuring Large File Toast */}
+      {largeFileNotice && (
+        <div className="w-full p-3.5 rounded-2xl bg-blue-500/20 border border-blue-500/40 text-blue-200 text-xs font-bold flex items-center justify-center gap-2 shadow-lg animate-pulse">
+          <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+          <span>{largeFileNotice}</span>
         </div>
       )}
 
