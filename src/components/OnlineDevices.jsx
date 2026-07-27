@@ -84,62 +84,61 @@ export default function OnlineDevices({
           </div>
         </div>
 
-        {/* 2. Other Online Devices Cards */}
-        {otherPeers.map((peer) => {
-          const isPending = safePendingSet.has(peer.id);
-          const peerDeviceName = peer.deviceType || peer.deviceInfo || peer.name || 'Online eszköz';
-
-          return (
-            <div
-              key={peer.id}
-              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm ${
-                isPending
-                  ? 'bg-blue-950/30 border-blue-500/40'
-                  : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0 pr-2">
-                <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                  {getDeviceIcon(peerDeviceName)}
-                </div>
-                <span className="text-sm font-extrabold text-zinc-100 truncate tracking-wide">
-                  {peerDeviceName}
-                </span>
-              </div>
-
-              {/* Right Side: Action Button */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                {isPending ? (
-                  <button
-                    onClick={() => onCancelSendToPeer(peer.id)}
-                    className="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium transition-all cursor-pointer"
-                  >
-                    Küldés visszavonása
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => onSendToPeer(peer.id)}
-                    disabled={!hasFilesSelected}
-                    className={`py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      hasFilesSelected
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/50 cursor-pointer active:scale-95'
-                        : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed opacity-60'
-                    }`}
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Küldés</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* 3. Clean Empty Notice when no other peers are online */}
-        {otherPeers.length === 0 && (
-          <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-zinc-800/50 text-xs text-zinc-400 font-normal text-center">
+        {/* 2. Other Online Devices Cards or Empty State */}
+        {otherPeers.length === 0 ? (
+          <div className="p-3.5 rounded-xl bg-zinc-950/40 border border-zinc-800/60 text-center text-xs text-zinc-400 font-medium">
             {t.noOtherDevices}
           </div>
+        ) : (
+          otherPeers.map((peer) => {
+            const isPending = safePendingSet.has(peer.id);
+            const peerDeviceName = peer.deviceType || peer.deviceInfo || peer.name || 'Online eszköz';
+
+            return (
+              <div
+                key={peer.id}
+                className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm ${
+                  isPending
+                    ? 'bg-blue-950/30 border-blue-500/40'
+                    : 'bg-zinc-950/80 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0 pr-2">
+                  <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                    {getDeviceIcon(peerDeviceName)}
+                  </div>
+                  <span className="text-sm font-extrabold text-zinc-100 truncate tracking-wide">
+                    {peerDeviceName}
+                  </span>
+                </div>
+
+                {/* Right Side: Action Button */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {isPending ? (
+                    <button
+                      onClick={() => onCancelSendToPeer(peer.id)}
+                      className="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium transition-all cursor-pointer"
+                    >
+                      Küldés visszavonása
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onSendToPeer(peer.id)}
+                      disabled={!hasFilesSelected}
+                      className={`py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        hasFilesSelected
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/50 cursor-pointer active:scale-95'
+                          : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed opacity-60'
+                      }`}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Küldés</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
         )}
 
       </div>

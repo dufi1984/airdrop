@@ -2,8 +2,8 @@ import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 
 const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
-const MAX_SLOTS = 10;
-const SLOT_PREFIX = 'airdrop-p2p-v5-';
+const MAX_SLOTS = 6;
+const SLOT_PREFIX = 'airdrop-p2p-v6-';
 
 class PeerNetworkService {
   constructor() {
@@ -34,15 +34,6 @@ class PeerNetworkService {
 
     this.probeTimer = null;
     this.isDestroyed = false;
-
-    // Fast reconnect when user switches back to app tab
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          this.probeOtherSlots();
-        }
-      });
-    }
   }
 
   init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected, onCancelled) {
@@ -105,7 +96,6 @@ class PeerNetworkService {
           this.handleIncomingConnection(conn);
         });
 
-        // Instant discovery probe
         this.startProbing();
       });
 
@@ -136,7 +126,7 @@ class PeerNetworkService {
     if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
-    }, 2000); // Probe every 2 seconds for instant peer discovery
+    }, 3000);
   }
 
   probeOtherSlots() {
@@ -147,13 +137,6 @@ class PeerNetworkService {
 
       const targetSlotId = `${SLOT_PREFIX}${i}`;
       const existingConn = this.connections.get(targetSlotId);
-
-      // Clean up stale or closed connections
-      if (existingConn && !existingConn.open) {
-        this.connections.delete(targetSlotId);
-        this.onlineDevices.delete(targetSlotId);
-      }
-
       if (!existingConn || !existingConn.open) {
         this.connectToSlot(targetSlotId);
       }
@@ -180,53 +163,60 @@ class PeerNetworkService {
   }
 
   setupConnectionEvents(conn) {
-    // Immediately set connection in map
-    this.connections.set(conn.peer, conn);
+    const peerId = conn.peer;
 
-    const updatePeerInfo = () => {
+    // Deduplicate connection: if we already have a functional open connection with this peer, keep existing!
+    const existingConn = this.connections.get(peerId);
+    if (existingConn && existingConn.open && existingConn !== conn) {
+      console.log(`ℹ️ Duplicate connection with ${peerId}, keeping active primary channel.`);
+      try { conn.close(); } catch (e) {}
+      return;
+    }
+
+    conn.on('open', () => {
+      console.log(`🤝 Connected WebRTC DataChannel with ${conn.peer}`);
+      
       const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
+      this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
         id: conn.peer,
         deviceInfo: peerDeviceInfo,
         deviceType: peerDeviceInfo,
         name: peerDeviceInfo
       });
+
+      // Immediate handshake exchange
+      try {
+        conn.send(JSON.stringify({
+          type: 'handshake',
+          deviceInfo: this.myDeviceName,
+          deviceType: this.myDeviceName
+        }));
+      } catch (e) {}
+
       this.notifyDevicesUpdate();
-    };
-
-    if (conn.open) {
-      updatePeerInfo();
-    } else {
-      conn.on('open', () => {
-        console.log(`🤝 Connected with ${conn.peer}`);
-        updatePeerInfo();
-
-        try {
-          conn.send(JSON.stringify({
-            type: 'handshake',
-            deviceInfo: this.myDeviceName,
-            deviceType: this.myDeviceName
-          }));
-        } catch (e) {}
-      });
-    }
+    });
 
     conn.on('data', (data) => {
       this.handleIncomingData(conn.peer, data);
     });
 
     conn.on('close', () => {
-      this.connections.delete(conn.peer);
-      this.onlineDevices.delete(conn.peer);
-      this.cleanIncomingState(conn.peer);
-      this.notifyDevicesUpdate();
+      if (this.connections.get(conn.peer) === conn) {
+        this.connections.delete(conn.peer);
+        this.onlineDevices.delete(conn.peer);
+        this.cleanIncomingState(conn.peer);
+        this.notifyDevicesUpdate();
+      }
     });
 
     conn.on('error', () => {
-      this.connections.delete(conn.peer);
-      this.onlineDevices.delete(conn.peer);
-      this.cleanIncomingState(conn.peer);
-      this.notifyDevicesUpdate();
+      if (this.connections.get(conn.peer) === conn) {
+        this.connections.delete(conn.peer);
+        this.onlineDevices.delete(conn.peer);
+        this.cleanIncomingState(conn.peer);
+        this.notifyDevicesUpdate();
+      }
     });
   }
 
@@ -270,9 +260,8 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header -> TRIGGER POPUP IMMEDIATELY!
+        // Sender proposed transfer header -> triggers incoming prompt on receiver!
         if (msg.type === 'propose_transfer') {
-          console.log(`📩 Incoming transfer proposed from ${fromPeerId}:`, msg);
           const senderInfo = this.onlineDevices.get(fromPeerId);
           const senderName = senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
           if (this.onIncomingPrompt) {
@@ -288,7 +277,7 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer before receiver accepts
+        // Sender cancelled proposed transfer before receiver accepted
         if (msg.type === 'cancel_proposed_transfer') {
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
@@ -409,45 +398,30 @@ class PeerNetworkService {
     this.activeSendCancellations.set(targetPeerId, true);
   }
 
-  // Propose transfer to target peer with guaranteed connection wait
+  // Propose transfer to target peer
   async sendFilesToPeer(targetPeerId, fileList) {
     let conn = this.connections.get(targetPeerId);
     
-    // Auto-reconnect or wait for DataChannel to open
+    // Auto-reconnect DataChannel if connection was closed or disconnected
     if (!conn || !conn.open) {
       this.connectToSlot(targetPeerId);
-      
-      // Wait up to 3000ms for connection to open
-      for (let attempt = 0; attempt < 15; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        conn = this.connections.get(targetPeerId);
-        if (conn && conn.open) break;
-      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      conn = this.connections.get(targetPeerId);
     }
 
-    if (!conn || !conn.open) {
-      console.warn('Could not establish WebRTC connection to peer:', targetPeerId);
-      return false;
-    }
+    if (!conn || !conn.open) return;
 
     this.pendingTransferFiles.set(targetPeerId, fileList);
     this.activeSendCancellations.delete(targetPeerId);
 
-    try {
-      // Propose transfer with timestamp & full list of file names
-      conn.send(JSON.stringify({
-        type: 'propose_transfer',
-        transferId: Date.now(),
-        totalFiles: fileList.length,
-        fileName: fileList[0].name,
-        fileNames: Array.from(fileList).map((f) => f.name)
-      }));
-      console.log(`✅ propose_transfer sent to ${targetPeerId}`);
-      return true;
-    } catch (err) {
-      console.error('Failed to send propose_transfer message:', err);
-      return false;
-    }
+    // Propose transfer with timestamp & full list of file names
+    conn.send(JSON.stringify({
+      type: 'propose_transfer',
+      transferId: Date.now(),
+      totalFiles: fileList.length,
+      fileName: fileList[0].name,
+      fileNames: Array.from(fileList).map((f) => f.name)
+    }));
   }
 
   async sendFilesToAll(fileList) {

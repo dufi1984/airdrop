@@ -152,7 +152,7 @@ export default function App() {
     }
     setPendingSendPeers((prev) => new Set(prev).add(targetPeerId));
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
-    // Keep filesToSend queue intact so files can be sent to other devices or re-sent after cancellation!
+    setFilesToSend([]);
   };
 
   const handleSendToAll = async () => {
@@ -164,7 +164,7 @@ export default function App() {
     const allPeerIds = peerList.filter((p) => !p.isSelf).map((p) => p.id);
     setPendingSendPeers(new Set(allPeerIds));
     await peerNetworkService.sendFilesToAll(filesToSend);
-    // Keep filesToSend queue intact!
+    setFilesToSend([]);
   };
 
   const handleClearReceived = () => {
