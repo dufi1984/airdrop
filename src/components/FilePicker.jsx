@@ -115,7 +115,7 @@ export default function FilePicker({ lang, files, setFiles }) {
       {!isEmpty && (
         <div className="flex flex-col gap-2 pt-1 border-t border-zinc-800 animate-fade-in">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-blue-400 tracking-wider">
               {files.length} {t.filesSelected}
             </span>
             <button
