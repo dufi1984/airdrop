@@ -136,9 +136,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     if (isMobile) {
       return uniqueReceivedFiles.length > 1 ? 'Képek mentése' : 'Kép mentése';
     }
-    return uniqueReceivedFiles.length > 1
-      ? `Minden letöltése a gépre (${uniqueReceivedFiles.length}/${totalExpectedFiles})`
-      : 'Fájl letöltése a gépre';
+    return 'Mind letöltése';
   };
 
   const getToggleText = () => {
@@ -167,7 +165,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
                 {t.receivedPackageTitle}
               </h3>
               <span className="text-xs sm:text-sm font-extrabold font-mono text-blue-400">
-                ({uniqueReceivedFiles.length}/${totalExpectedFiles})
+                ({uniqueReceivedFiles.length}/{totalExpectedFiles})
               </span>
             </div>
             <p className="text-xs text-emerald-300 font-medium">
