@@ -34,7 +34,7 @@ export default function App() {
     window.__airdrop_has_received_files = receivedFiles.length > 0;
   }, [filesToSend, receivedFiles]);
 
-  // Initialize instant PeerJS cloud network with phone call style incoming prompt callback
+  // Initialize clean network service with predictable event handlers
   useEffect(() => {
     peerNetworkService.init(
       (status) => setIsConnected(status),
@@ -49,11 +49,9 @@ export default function App() {
         }
 
         if (progressData && progressData.direction === 'send' && progressData.progress >= 100) {
-          setTimeout(() => {
-            setTransferState(null);
-            setAlertMsg('Sikeres átvitel! A csomag megérkezett.');
-            setTimeout(() => setAlertMsg(null), 4000);
-          }, 1200);
+          setTransferState(null);
+          setAlertMsg('Sikeres átvitel! A csomag megérkezett.');
+          setTimeout(() => setAlertMsg(null), 4000);
         }
       },
       (receivedFileData) => {
@@ -68,12 +66,8 @@ export default function App() {
         }
       },
       (promptInfo) => {
-        // Automatically close QR code modal if open, so incoming prompt is immediately visible!
         setShowQrModal(false);
-        setIncomingPrompt(null);
-        setTimeout(() => {
-          setIncomingPrompt({ ...promptInfo });
-        }, 20);
+        setIncomingPrompt(promptInfo);
       },
       (rejectedPeerId) => {
         setTransferState(null);
@@ -86,7 +80,6 @@ export default function App() {
         setTimeout(() => setAlertMsg(null), 3500);
       },
       (cancelledPeerId) => {
-        // Instantly dismiss incoming prompt modal on receiver when sender cancels transfer!
         setIncomingPrompt(null);
         setAlertMsg('A küldő visszavonta az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3000);
@@ -98,7 +91,7 @@ export default function App() {
     };
   }, []);
 
-  // Toggleable reload button handler (prevents stuck spinning, confirms if files queued)
+  // Force cache-busting reload button action
   const handleForceAppReload = () => {
     if (isRefreshing) {
       setIsRefreshing(false);
@@ -144,7 +137,7 @@ export default function App() {
     try {
       peerNetworkService.cancelProposedSend(targetPeerId);
     } catch (err) {
-      console.warn('Cancel proposed send error:', err);
+      console.warn('Cancel send error:', err);
     }
     setPendingSendPeers((prev) => {
       const next = new Set(prev instanceof Set ? prev : []);
@@ -163,7 +156,6 @@ export default function App() {
     }
     setPendingSendPeers((prev) => new Set(prev).add(targetPeerId));
     await peerNetworkService.sendFilesToPeer(targetPeerId, filesToSend);
-    // Files remain queued until transfer starts streaming!
   };
 
   const handleSendToAll = async () => {
@@ -175,7 +167,6 @@ export default function App() {
     const allPeerIds = peerList.filter((p) => !p.isSelf).map((p) => p.id);
     setPendingSendPeers(new Set(allPeerIds));
     await peerNetworkService.sendFilesToAll(filesToSend);
-    // Files remain queued until transfer starts streaming!
   };
 
   const handleClearReceived = () => {
@@ -203,7 +194,7 @@ export default function App() {
       {/* Main Container with Responsive Ordering */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
 
-        {/* 1. File Selector Component (Top on ALL devices) */}
+        {/* 1. File Selector Component */}
         <FilePicker
           lang={lang}
           files={filesToSend}
@@ -243,7 +234,7 @@ export default function App() {
         <Heart className="w-3 h-3 text-rose-500/80 fill-rose-500/80" />
       </footer>
 
-      {/* Phone Call Style Incoming Prompt Modal Prompt (Top z-index layer z-[9999]) */}
+      {/* Incoming Prompt Modal Prompt */}
       {incomingPrompt && (
         <IncomingPromptModal
           lang={lang}

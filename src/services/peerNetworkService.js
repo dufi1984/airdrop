@@ -5,6 +5,9 @@ const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
 const MAX_SLOTS = 6;
 const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
+/**
+ * Clean Single-Responsibility WebRTC Peer-to-Peer Transfer Engine
+ */
 class PeerNetworkService {
   constructor() {
     this.peer = null;
@@ -12,10 +15,18 @@ class PeerNetworkService {
     this.mySlotIndex = null;
     this.myDeviceName = detectDeviceName();
 
+    // Active DataChannel connections per target peer ID
     this.connections = new Map();
+    // Known online devices on the network
     this.onlineDevices = new Map();
 
-    // Callbacks
+    // Sender Sessions: targetPeerId => { files: File[], status: 'PROPOSED' | 'STREAMING' }
+    this.senderSessions = new Map();
+
+    // Receiver Sessions: senderPeerId => { transferId, senderName, totalFiles, header, chunks: ArrayBuffer[], receivedBytes: number }
+    this.receiverSessions = new Map();
+
+    // Event Callbacks
     this.onStatusChange = null;
     this.onDevicesUpdate = null;
     this.onProgress = null;
@@ -23,14 +34,6 @@ class PeerNetworkService {
     this.onIncomingPrompt = null;
     this.onRejected = null;
     this.onCancelled = null;
-
-    // Incoming file assembly states per sender
-    this.incomingHeaders = new Map();
-    this.receivedChunksMap = new Map();
-    this.receivedBytesMap = new Map();
-    this.receiveStartTimes = new Map();
-    this.pendingTransferFiles = new Map();
-    this.activeSendCancellations = new Map();
 
     this.probeTimer = null;
     this.isDestroyed = false;
@@ -49,27 +52,6 @@ class PeerNetworkService {
     this.tryClaimSlot(1);
   }
 
-  updateMyDeviceName(newName) {
-    if (!newName || !newName.trim()) return;
-    this.myDeviceName = newName.trim();
-    localStorage.setItem('airdrop_custom_device_name', this.myDeviceName);
-
-    // Broadcast updated name to all connected peers
-    this.connections.forEach((conn) => {
-      if (conn && conn.open) {
-        try {
-          conn.send(JSON.stringify({
-            type: 'handshake',
-            deviceInfo: this.myDeviceName,
-            deviceType: this.myDeviceName
-          }));
-        } catch (e) {}
-      }
-    });
-
-    this.notifyDevicesUpdate();
-  }
-
   tryClaimSlot(slotIndex) {
     if (slotIndex > MAX_SLOTS || this.isDestroyed) return;
 
@@ -85,7 +67,6 @@ class PeerNetworkService {
       });
 
       peer.on('open', (id) => {
-        console.log(`✅ Connected slot #${slotIndex}:`, id);
         this.peer = peer;
         this.myId = id;
         this.mySlotIndex = slotIndex;
@@ -93,7 +74,7 @@ class PeerNetworkService {
         if (this.onStatusChange) this.onStatusChange(true);
 
         this.peer.on('connection', (conn) => {
-          this.handleIncomingConnection(conn);
+          this.setupConnectionEvents(conn);
         });
 
         this.startProbing();
@@ -104,7 +85,7 @@ class PeerNetworkService {
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
         } else {
-          console.warn('Peer error:', err.type);
+          console.warn('[PeerJS] Init notice:', err.type);
         }
       });
 
@@ -117,12 +98,13 @@ class PeerNetworkService {
         }
       });
     } catch (e) {
-      console.error('Peer init error:', e);
+      console.error('[PeerJS] Init Exception:', e);
     }
   }
 
   startProbing() {
     this.probeOtherSlots();
+    if (this.probeTimer) clearInterval(this.probeTimer);
     this.probeTimer = setInterval(() => {
       this.probeOtherSlots();
     }, 4000);
@@ -157,14 +139,8 @@ class PeerNetworkService {
     } catch (err) {}
   }
 
-  handleIncomingConnection(conn) {
-    this.setupConnectionEvents(conn);
-  }
-
   setupConnectionEvents(conn) {
     conn.on('open', () => {
-      console.log(`🤝 Connected with ${conn.peer}`);
-      
       const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
@@ -190,27 +166,20 @@ class PeerNetworkService {
     });
 
     conn.on('close', () => {
-      this.connections.delete(conn.peer);
-      this.onlineDevices.delete(conn.peer);
-      this.cleanIncomingState(conn.peer);
-      this.notifyDevicesUpdate();
+      this.cleanupPeerSession(conn.peer);
     });
 
     conn.on('error', () => {
-      this.connections.delete(conn.peer);
-      this.onlineDevices.delete(conn.peer);
-      this.cleanIncomingState(conn.peer);
-      this.notifyDevicesUpdate();
+      this.cleanupPeerSession(conn.peer);
     });
   }
 
-  cleanIncomingState(peerId) {
-    this.incomingHeaders.delete(peerId);
-    this.receivedChunksMap.delete(peerId);
-    this.receivedBytesMap.delete(peerId);
-    this.receiveStartTimes.delete(peerId);
-    this.pendingTransferFiles.delete(peerId);
-    this.activeSendCancellations.delete(peerId);
+  cleanupPeerSession(peerId) {
+    this.connections.delete(peerId);
+    this.onlineDevices.delete(peerId);
+    this.senderSessions.delete(peerId);
+    this.receiverSessions.delete(peerId);
+    this.notifyDevicesUpdate();
   }
 
   notifyDevicesUpdate() {
@@ -226,12 +195,13 @@ class PeerNetworkService {
     if (this.onDevicesUpdate) this.onDevicesUpdate(list);
   }
 
-  // Handle WebRTC DataChannel message parser
+  // --- Centralized WebRTC Data Message Handler ---
   handleIncomingData(fromPeerId, data) {
     if (typeof data === 'string') {
       try {
         const msg = JSON.parse(data);
 
+        // 1. Handshake Message
         if (msg.type === 'handshake') {
           const peerName = msg.deviceType || msg.deviceInfo || 'Eszköz';
           this.onlineDevices.set(fromPeerId, {
@@ -244,17 +214,26 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender proposed transfer header -> Reset states and trigger prompt modal!
+        // 2. Incoming Transfer Proposal from Sender
         if (msg.type === 'propose_transfer') {
           const senderInfo = this.onlineDevices.get(fromPeerId);
-          const senderName = msg.senderName || senderInfo?.deviceType || senderInfo?.deviceInfo || 'Online Eszköz';
-          
-          this.activeSendCancellations.delete(fromPeerId);
-          this.cleanIncomingState(fromPeerId);
+          const senderName = msg.senderName || senderInfo?.deviceType || 'Online Eszköz';
+
+          // Initialize clean receiver session state
+          this.receiverSessions.set(fromPeerId, {
+            transferId: msg.transferId || Date.now(),
+            senderName,
+            totalFiles: msg.totalFiles,
+            fileNames: msg.fileNames || [msg.fileName],
+            chunks: [],
+            receivedBytes: 0,
+            header: null,
+            startTime: null
+          });
 
           if (this.onIncomingPrompt) {
             this.onIncomingPrompt({
-              transferId: msg.transferId || (Date.now() + Math.random()),
+              transferId: msg.transferId || Date.now(),
               fromPeerId,
               senderName,
               totalFiles: msg.totalFiles,
@@ -265,119 +244,125 @@ class PeerNetworkService {
           return;
         }
 
-        // Sender cancelled proposed transfer before receiver accepts
+        // 3. Sender Cancelled Proposed Transfer
         if (msg.type === 'cancel_proposed_transfer') {
-          this.cleanIncomingState(fromPeerId);
+          this.receiverSessions.delete(fromPeerId);
           if (this.onCancelled) this.onCancelled(fromPeerId);
           return;
         }
 
-        // Receiver accepted transfer -> start streaming!
+        // 4. Receiver Accepted Transfer -> Sender starts streaming!
         if (msg.type === 'accept_transfer') {
-          const pending = this.pendingTransferFiles.get(fromPeerId);
-          if (pending) {
-            this.executeSendFiles(fromPeerId, pending);
-            this.pendingTransferFiles.delete(fromPeerId);
+          const session = this.senderSessions.get(fromPeerId);
+          if (session && session.files) {
+            session.status = 'STREAMING';
+            this.executeSendFiles(fromPeerId, session.files);
           }
           return;
         }
 
-        // Receiver rejected transfer -> immediately cancel sending!
+        // 5. Receiver Rejected Transfer -> Sender stops session
         if (msg.type === 'reject_transfer') {
-          this.pendingTransferFiles.delete(fromPeerId);
-          this.activeSendCancellations.set(fromPeerId, true);
+          this.senderSessions.delete(fromPeerId);
           if (this.onRejected) this.onRejected(fromPeerId);
           return;
         }
 
+        // 6. Incoming File Header
         if (msg.type === 'header') {
-          this.incomingHeaders.set(fromPeerId, msg);
-          this.receivedChunksMap.set(fromPeerId, []);
-          this.receivedBytesMap.set(fromPeerId, 0);
-          this.receiveStartTimes.set(fromPeerId, Date.now());
+          const session = this.receiverSessions.get(fromPeerId) || {};
+          session.header = msg;
+          session.chunks = [];
+          session.receivedBytes = 0;
+          session.startTime = Date.now();
+          this.receiverSessions.set(fromPeerId, session);
           return;
         }
 
+        // 7. Incoming File End Signal
         if (msg.type === 'end') {
-          const header = this.incomingHeaders.get(fromPeerId);
-          const chunks = this.receivedChunksMap.get(fromPeerId) || [];
-
-          if (header && chunks.length > 0) {
-            const blob = new Blob(chunks, { type: header.mimeType });
-            const file = new File([blob], header.name, { type: header.mimeType });
+          const session = this.receiverSessions.get(fromPeerId);
+          if (session && session.header && session.chunks.length > 0) {
+            const blob = new Blob(session.chunks, { type: session.header.mimeType });
+            const file = new File([blob], session.header.name, { type: session.header.mimeType });
 
             if (this.onFileReceived) {
               this.onFileReceived({
                 file,
                 blobUrl: URL.createObjectURL(blob),
-                name: header.name,
-                size: header.size,
-                mimeType: header.mimeType,
-                currentIndex: header.currentIndex || 1,
-                totalFiles: header.totalFiles || 1,
+                name: session.header.name,
+                size: session.header.size,
+                mimeType: session.header.mimeType,
+                currentIndex: session.header.currentIndex || 1,
+                totalFiles: session.header.totalFiles || 1,
                 fromPeerId
               });
             }
           }
 
-          this.cleanIncomingState(fromPeerId);
+          // Clean session if this was the final file
+          if (session?.header?.currentIndex >= session?.header?.totalFiles) {
+            this.receiverSessions.delete(fromPeerId);
+          }
           return;
         }
       } catch (err) {
-        console.error('JSON parsing error:', err);
+        console.error('[PeerJS] JSON Message Error:', err);
       }
     } 
     else if (data instanceof ArrayBuffer || data?.buffer instanceof ArrayBuffer) {
+      // 8. Raw Binary WebRTC Chunk Stream
       const buffer = data instanceof ArrayBuffer ? data : data.buffer;
-      const header = this.incomingHeaders.get(fromPeerId);
-      if (!header) return;
+      const session = this.receiverSessions.get(fromPeerId);
+      if (!session || !session.header) return;
 
-      const chunks = this.receivedChunksMap.get(fromPeerId) || [];
-      chunks.push(buffer);
-      this.receivedChunksMap.set(fromPeerId, chunks);
+      session.chunks.push(buffer);
+      session.receivedBytes += buffer.byteLength;
 
-      const currentBytes = (this.receivedBytesMap.get(fromPeerId) || 0) + buffer.byteLength;
-      this.receivedBytesMap.set(fromPeerId, currentBytes);
-
-      const startTime = this.receiveStartTimes.get(fromPeerId) || Date.now();
-      const elapsed = (Date.now() - startTime) / 1000;
-      const speed = elapsed > 0 ? currentBytes / elapsed : 0;
-      const remainingBytes = header.size - currentBytes;
+      const elapsed = (Date.now() - (session.startTime || Date.now())) / 1000;
+      const speed = elapsed > 0 ? session.receivedBytes / elapsed : 0;
+      const remainingBytes = session.header.size - session.receivedBytes;
       const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((currentBytes / header.size) * 100));
+      const progress = Math.min(100, Math.round((session.receivedBytes / session.header.size) * 100));
 
       if (this.onProgress) {
         this.onProgress({
           direction: 'receive',
-          fileName: header.name,
-          fileSize: header.size,
+          fileName: session.header.name,
+          fileSize: session.header.size,
           progress,
           speed,
           eta,
-          currentIndex: header.currentIndex,
-          totalFiles: header.totalFiles
+          currentIndex: session.header.currentIndex,
+          totalFiles: session.header.totalFiles
         });
       }
     }
   }
 
-  // Accept incoming transfer prompt
+  // --- Receiver Actions ---
+
   acceptIncoming(fromPeerId) {
     const conn = this.connections.get(fromPeerId);
     if (conn && conn.open) {
-      conn.send(JSON.stringify({ type: 'accept_transfer' }));
+      try {
+        conn.send(JSON.stringify({ type: 'accept_transfer' }));
+      } catch (e) {}
     }
   }
 
-  // Reject incoming transfer prompt
   rejectIncoming(fromPeerId) {
     const conn = this.connections.get(fromPeerId);
     if (conn && conn.open) {
-      conn.send(JSON.stringify({ type: 'reject_transfer' }));
+      try {
+        conn.send(JSON.stringify({ type: 'reject_transfer' }));
+      } catch (e) {}
     }
+    this.receiverSessions.delete(fromPeerId);
   }
 
-  // Cancel proposed transfer before receiver accepts
+  // --- Sender Actions ---
+
   cancelProposedSend(targetPeerId) {
     const conn = this.connections.get(targetPeerId);
     if (conn && conn.open) {
@@ -385,16 +370,18 @@ class PeerNetworkService {
         conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
       } catch (e) {}
     }
-    this.pendingTransferFiles.delete(targetPeerId);
-    this.activeSendCancellations.delete(targetPeerId);
+    this.senderSessions.delete(targetPeerId);
   }
 
-  // Propose transfer to target peer with lightweight WebRTC payload capping & auto-reconnect logic
   async sendFilesToPeer(targetPeerId, fileList) {
-    this.pendingTransferFiles.set(targetPeerId, fileList);
-    this.activeSendCancellations.delete(targetPeerId);
+    if (!fileList || fileList.length === 0) return;
 
-    // Keep payload ultra-lightweight (<1KB) for 100% WebRTC DataChannel packet delivery
+    // Register clean sender session
+    this.senderSessions.set(targetPeerId, {
+      files: Array.from(fileList),
+      status: 'PROPOSED'
+    });
+
     const safeFileNames = Array.from(fileList).slice(0, 10).map((f) => f.name);
     const payload = JSON.stringify({
       type: 'propose_transfer',
@@ -408,18 +395,17 @@ class PeerNetworkService {
     let conn = this.connections.get(targetPeerId);
     let sentSuccessfully = false;
 
-    // 1. Try sending over existing open DataChannel
+    // 1. Send over existing open channel
     if (conn && conn.open) {
       try {
         conn.send(payload);
         sentSuccessfully = true;
       } catch (err) {
-        console.warn('Existing DataChannel failed, reconnecting...', err);
         this.connections.delete(targetPeerId);
       }
     }
 
-    // 2. If existing connection wasn't open or failed to send, recreate DataChannel and send!
+    // 2. If channel was closed or failed, establish fresh channel and send
     if (!sentSuccessfully) {
       this.connectToSlot(targetPeerId);
       for (let attempt = 0; attempt < 20; attempt++) {
@@ -448,11 +434,14 @@ class PeerNetworkService {
     if (!conn || !conn.open) return;
 
     for (let i = 0; i < fileList.length; i++) {
-      if (this.activeSendCancellations.get(targetPeerId)) break;
+      const session = this.senderSessions.get(targetPeerId);
+      if (!session || session.status !== 'STREAMING') break;
 
       const file = fileList[i];
       await this.sendFileToConn(conn, file, i + 1, fileList.length);
     }
+
+    this.senderSessions.delete(targetPeerId);
   }
 
   async sendFileToConn(conn, file, currentIndex, totalFiles) {
@@ -471,8 +460,11 @@ class PeerNetworkService {
       const reader = new FileReader();
 
       const sendNextChunk = () => {
-        if (offset >= file.size || this.activeSendCancellations.get(conn.peer)) {
-          conn.send(JSON.stringify({ type: 'end', name: file.name }));
+        const session = this.senderSessions.get(conn.peer);
+        if (offset >= file.size || !session || session.status !== 'STREAMING') {
+          try {
+            conn.send(JSON.stringify({ type: 'end', name: file.name }));
+          } catch (e) {}
           resolve();
           return;
         }
@@ -482,13 +474,19 @@ class PeerNetworkService {
       };
 
       reader.onload = (e) => {
-        if (!conn || !conn.open || this.activeSendCancellations.get(conn.peer)) {
+        const session = this.senderSessions.get(conn.peer);
+        if (!conn || !conn.open || !session || session.status !== 'STREAMING') {
           resolve();
           return;
         }
 
         const chunkBuffer = e.target.result;
-        conn.send(chunkBuffer);
+        try {
+          conn.send(chunkBuffer);
+        } catch (err) {
+          resolve();
+          return;
+        }
 
         offset += chunkBuffer.byteLength;
 
@@ -528,12 +526,8 @@ class PeerNetworkService {
     }
     this.connections.clear();
     this.onlineDevices.clear();
-    this.incomingHeaders.clear();
-    this.receivedChunksMap.clear();
-    this.receivedBytesMap.clear();
-    this.receiveStartTimes.clear();
-    this.pendingTransferFiles.clear();
-    this.activeSendCancellations.clear();
+    this.senderSessions.clear();
+    this.receiverSessions.clear();
   }
 }
 
