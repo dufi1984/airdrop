@@ -7,6 +7,7 @@ const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 /**
  * Clean Single-Responsibility WebRTC Peer-to-Peer Transfer Engine
+ * Enhanced with Global Multi-Region STUN & Relay Configuration
  */
 class PeerNetworkService {
   constructor() {
@@ -58,12 +59,23 @@ class PeerNetworkService {
     const slotId = `${SLOT_PREFIX}${slotIndex}`;
 
     try {
+      // Enhanced Multi-Region STUN/ICE Server Config for Global Inter-Continental NAT Hole Punching
       const peer = new Peer(slotId, {
         host: '0.peerjs.com',
         port: 443,
         path: '/',
         secure: true,
         debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
       });
 
       peer.on('open', (id) => {
