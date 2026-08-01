@@ -64,13 +64,13 @@ export default function FilePicker({ lang, files, setFiles }) {
   return (
     <div className="w-full bg-zinc-900/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-zinc-800 shadow-xl transition-all">
       
-      {/* Universal Input enabling Android System Choice Screen (Camera / Gallery / Files / Drive) */}
+      {/* Media Input Opening Gallery Directly on Android & Mobile */}
       <input
         type="file"
         ref={inputRef}
         onChange={handleFileChange}
         multiple
-        accept="*/*"
+        accept="image/*,video/*"
         className="hidden"
       />
 
