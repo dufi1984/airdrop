@@ -17,7 +17,7 @@ Közvetlen fájl- és képmegosztás bármilyen eszköz között – regisztrác
 
 ## Technikai Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS (Glassmorphism dark theme UI).
-- **P2P Engine**: Native WebRTC RTCDataChannel via PeerJS.
-- **Mobile Integration**: Web Share API (`navigator.share`) multi-file gallery export.
-- **Hosting**: GitHub Pages via GitHub Actions CI/CD pipeline.
+- **Frontend**: React 18, Vite, Tailwind CSS (Glassmorphism Dark Theme UI).
+- **P2P Engine**: Native WebRTC RTCDataChannel via PeerJS with Multi-Region STUN & Backpressure Flow Control.
+- **Mobile & Desktop Integration**: Native iOS Web Share API (`navigator.share`) + Direct Android & PC Storage Download (`a.download`).
+- **Hosting & CI/CD**: GitHub Pages via GitHub Actions.
