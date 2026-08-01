@@ -7,7 +7,7 @@ const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 /**
  * Clean Single-Responsibility WebRTC Peer-to-Peer Transfer Engine
- * Enhanced with Global Multi-Region STUN & Relay Configuration
+ * Enhanced with Global Multi-Region STUN & Backpressure Buffer Flow Control
  */
 class PeerNetworkService {
   constructor() {
@@ -21,7 +21,7 @@ class PeerNetworkService {
     // Known online devices on the network
     this.onlineDevices = new Map();
 
-    // Sender Sessions: targetPeerId => { files: File[], status: 'PROPOSED' | 'STREAMING' }
+    // Sender Sessions: targetPeerId => { files: File[], status: 'PROPOSED' | 'STREAMING', isExecuting: boolean }
     this.senderSessions = new Map();
 
     // Receiver Sessions: senderPeerId => { transferId, senderName, totalFiles, header, chunks: ArrayBuffer[], receivedBytes: number }
@@ -266,7 +266,7 @@ class PeerNetworkService {
         // 4. Receiver Accepted Transfer -> Sender starts streaming!
         if (msg.type === 'accept_transfer') {
           const session = this.senderSessions.get(fromPeerId);
-          if (session && session.files) {
+          if (session && session.files && !session.isExecuting) {
             session.status = 'STREAMING';
             this.executeSendFiles(fromPeerId, session.files);
           }
@@ -391,7 +391,8 @@ class PeerNetworkService {
     // Register clean sender session
     this.senderSessions.set(targetPeerId, {
       files: Array.from(fileList),
-      status: 'PROPOSED'
+      status: 'PROPOSED',
+      isExecuting: false
     });
 
     const safeFileNames = Array.from(fileList).slice(0, 10).map((f) => f.name);
@@ -442,12 +443,16 @@ class PeerNetworkService {
   }
 
   async executeSendFiles(targetPeerId, fileList) {
+    const session = this.senderSessions.get(targetPeerId);
+    if (!session || session.isExecuting) return; // Prevent double execution loops!
+    session.isExecuting = true;
+
     const conn = this.connections.get(targetPeerId);
     if (!conn || !conn.open) return;
 
     for (let i = 0; i < fileList.length; i++) {
-      const session = this.senderSessions.get(targetPeerId);
-      if (!session || session.status !== 'STREAMING') break;
+      const currentSession = this.senderSessions.get(targetPeerId);
+      if (!currentSession || currentSession.status !== 'STREAMING') break;
 
       const file = fileList[i];
       await this.sendFileToConn(conn, file, i + 1, fileList.length);
@@ -471,7 +476,7 @@ class PeerNetworkService {
       const startTime = Date.now();
       const reader = new FileReader();
 
-      const sendNextChunk = () => {
+      const sendNextChunk = async () => {
         const session = this.senderSessions.get(conn.peer);
         if (offset >= file.size || !session || session.status !== 'STREAMING') {
           try {
@@ -479,6 +484,15 @@ class PeerNetworkService {
           } catch (e) {}
           resolve();
           return;
+        }
+
+        // WebRTC DataChannel backpressure flow control to prevent buffer overflow & image corruption!
+        const dc = conn.dataChannel || conn._channel;
+        if (dc && dc.bufferedAmount > 256 * 1024) {
+          for (let i = 0; i < 50; i++) {
+            if (!dc || dc.bufferedAmount < 64 * 1024) break;
+            await new Promise((r) => setTimeout(r, 20));
+          }
         }
 
         const slice = file.slice(offset, offset + CHUNK_SIZE);

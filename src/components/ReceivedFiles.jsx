@@ -9,6 +9,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   const autoTriggeredBatchIdRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(true);
 
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   // Deduplicated list of received files by blobUrl/name
@@ -24,7 +25,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   const isReceivingActive = transferState && transferState.direction === 'receive';
   const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
 
-  // Direct Batch Download for PC
+  // Direct Batch Download for Android & PC
   const handleDirectDownloadAll = () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
     uniqueReceivedFiles.forEach((item, index) => {
@@ -43,14 +44,14 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
     const fileList = uniqueReceivedFiles.map((item) => item.file);
 
-    // 1. On Mobile (iPhone / Android): Open Native Bottom Panel to Save to Photo Gallery
-    if (isMobile) {
+    // 1. On iOS (iPhone / iPad): Open Native iOS Share Sheet (has "Save X Images to Photo Library")
+    if (isIOS) {
       if (navigator.share && navigator.canShare && navigator.canShare({ files: fileList })) {
         try {
           await navigator.share({
             files: fileList,
             title: `Airdrop Media (${uniqueReceivedFiles.length} fájl)`,
-            text: 'Fájlok mentése a galériába az Airdrop alkalmazással',
+            text: 'Képek mentése a galériába az Airdrop alkalmazással',
           });
         } catch (err) {
           console.log('User cancelled native share panel:', err);
@@ -59,13 +60,13 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
       return;
     }
 
-    // 2. Direct Download ONLY for Desktop PC
+    // 2. On Android & Desktop PC: Direct File Downloads directly into Downloads / Photos Storage!
     handleDirectDownloadAll();
   };
 
-  // Single Item Action: Save 1 file to Photo Gallery on Mobile or Download on PC
+  // Single Item Action: Save 1 file to Photo Gallery on iOS or Download directly on Android/PC
   const handleSaveSingleItem = async (item) => {
-    if (isMobile) {
+    if (isIOS) {
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
         try {
           await navigator.share({
@@ -80,7 +81,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
       return;
     }
 
-    // Direct Download ONLY for Desktop PC
+    // Direct Download for Android & Desktop PC
     const link = document.createElement('a');
     link.href = item.blobUrl;
     link.download = item.name;
@@ -133,7 +134,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   };
 
   const getSaveButtonText = () => {
-    if (isMobile) {
+    if (isIOS) {
       return uniqueReceivedFiles.length > 1 ? 'Képek mentése' : 'Kép mentése';
     }
     return 'Mind letöltése';
@@ -196,7 +197,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         <span>{getSaveButtonText()}</span>
       </button>
 
-      {/* Collapsible Gallery Toggle (Larger spacing & spacious 44px+ touch target) */}
+      {/* Collapsible Gallery Toggle */}
       <div className="w-full pt-3 border-t border-zinc-800/80">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -231,7 +232,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
               <button
                 onClick={() => handleSaveSingleItem(item)}
                 className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 hover:bg-zinc-800 hover:border-zinc-500 hover:text-white transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
-                title={isMobile ? "Mentés a galériába" : "Fájl letöltése külön"}
+                title={isIOS ? "Mentés a galériába" : "Letöltés gépre/telefonra"}
               >
                 <Download className="w-4.5 h-4.5 text-zinc-100" />
               </button>
