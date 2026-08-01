@@ -25,6 +25,9 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   const isReceivingActive = transferState && transferState.direction === 'receive';
   const totalExpectedFiles = transferState?.totalFiles || uniqueReceivedFiles.length;
 
+  // Package is only complete when transfer is not active and all expected files have arrived!
+  const isPackageComplete = !isReceivingActive && uniqueReceivedFiles.length >= totalExpectedFiles;
+
   // Direct Batch Download for Android & PC
   const handleDirectDownloadAll = () => {
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
@@ -92,7 +95,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
 
   // Auto-scroll and trigger batch download ONCE on PC when files arrive
   useEffect(() => {
-    if (uniqueReceivedFiles.length > 0 && containerRef.current) {
+    if (isPackageComplete && uniqueReceivedFiles.length > 0 && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
@@ -105,7 +108,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         return () => clearTimeout(timer);
       }
     }
-  }, [uniqueReceivedFiles, isMobile]);
+  }, [uniqueReceivedFiles, isPackageComplete, isMobile]);
 
   if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return null;
 
@@ -188,14 +191,16 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </button>
       </div>
 
-      {/* Main Action Button */}
-      <button
-        onClick={handleSaveOrDownloadAll}
-        className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 cursor-pointer"
-      >
-        <Download className="w-5 h-5 text-white" />
-        <span>{getSaveButtonText()}</span>
-      </button>
+      {/* Main Action Button (ONLY appears after the LAST file has fully arrived!) */}
+      {isPackageComplete && (
+        <button
+          onClick={handleSaveOrDownloadAll}
+          className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 cursor-pointer animate-fade-in"
+        >
+          <Download className="w-5 h-5 text-white" />
+          <span>{getSaveButtonText()}</span>
+        </button>
+      )}
 
       {/* Collapsible Gallery Toggle */}
       <div className="w-full pt-3 border-t border-zinc-800/80">
