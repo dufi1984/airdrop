@@ -8,6 +8,7 @@ import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
+import { platform } from './platform';
 import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
@@ -65,22 +66,10 @@ export default function App() {
         }
 
         // Android & PC: auto-download each file the moment it fully arrives
-        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (!isIOS) {
-          try {
-            const link = document.createElement('a');
-            link.style.display = 'none';
-            link.href = receivedFileData.blobUrl;
-            link.download = receivedFileData.name;
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => {
-              if (document.body.contains(link)) document.body.removeChild(link);
-            }, 500);
-            setAutoSavedFiles((prev) => new Set([...prev, receivedFileData.name]));
-          } catch (e) {
-            console.warn('Auto-download failed, fallback to manual:', e);
-          }
+        if (platform.autoDownloads) {
+          platform.saveFile(receivedFileData)
+            .then(() => setAutoSavedFiles((prev) => new Set([...prev, receivedFileData.name])))
+            .catch((e) => console.warn('Auto-download failed:', e));
         }
 
         if (receivedFileData.currentIndex >= receivedFileData.totalFiles) {
