@@ -1,15 +1,25 @@
 import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
+import { platform } from '../platform';
 
 // ─────────────────────────────────────────────
 // Transfer Constants
 // ─────────────────────────────────────────────
-const CHUNK_SIZE         = 16 * 1024;   // 16 KB – safe for iOS Safari WebKit DataChannel
-const HIGH_WATERMARK     = 256 * 1024;  // Pause sending above this bufferedAmount
-const LOW_WATERMARK      = 32 * 1024;   // Resume sending at/below this (bufferedamountlow threshold)
-const CHUNK_WATCHDOG_MS  = 20_000;      // Abort if no chunk progress for 20s
+const CHUNK_SIZE         = platform.chunkSize; // default for sending to unknown receivers
+const HIGH_WATERMARK     = 256 * 1024;
+const LOW_WATERMARK      = 32 * 1024;
+const CHUNK_WATCHDOG_MS  = 20_000;
 const MAX_SLOTS          = 6;
 const SLOT_PREFIX        = 'airdrop-p2p-v5-';
+
+/**
+ * Returns the ideal chunk size for a given receiver peer.
+ * If the receiver is iOS (WebKit), we use 16 KB to avoid silent packet drops.
+ * For Android and Desktop (Chromium), 64 KB is safe and roughly 4× faster.
+ */
+function getChunkSizeFor(receiverFamily) {
+  return receiverFamily === 'ios' ? 16 * 1024 : 64 * 1024;
+}
 
 // ─────────────────────────────────────────────
 // Sender Session State Machine
@@ -235,20 +245,24 @@ class PeerNetworkService {
   // ─────────────────────────────────────────
   setupConnectionEvents(conn) {
     conn.on('open', () => {
-      const peerName = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
+      const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
+      const peerFamily = conn.metadata?.deviceFamily || 'desktop';
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
-        id: conn.peer, name: peerName, deviceInfo: peerName, deviceType: peerName,
+        id: conn.peer, name: peerName, deviceInfo: peerName, deviceType: peerName, deviceFamily: peerFamily,
       });
 
       // Configure native DataChannel for event-driven backpressure
       const dc = getRawDataChannel(conn);
-      if (dc) {
-        dc.bufferedAmountLowThreshold = LOW_WATERMARK;
-      }
+      if (dc) dc.bufferedAmountLowThreshold = LOW_WATERMARK;
 
       try {
-        conn.send(JSON.stringify({ type: 'handshake', deviceInfo: this.myDeviceName, deviceType: this.myDeviceName }));
+        conn.send(JSON.stringify({
+          type: 'handshake',
+          deviceInfo:   this.myDeviceName,
+          deviceType:   this.myDeviceName,
+          deviceFamily: platform.name,          // ← tells the receiver who we are
+        }));
       } catch (_) {}
 
       this.notifyDevicesUpdate();
@@ -326,8 +340,11 @@ class PeerNetworkService {
   // Message Handlers (Receiver Side)
   // ─────────────────────────────────────────
   onHandshake(fromPeerId, msg) {
-    const peerName = msg.deviceType || msg.deviceInfo || 'Eszköz';
-    this.onlineDevices.set(fromPeerId, { id: fromPeerId, name: peerName, deviceInfo: peerName, deviceType: peerName });
+    const peerName   = msg.deviceType || msg.deviceInfo || 'Eszköz';
+    const peerFamily = msg.deviceFamily || 'desktop';
+    this.onlineDevices.set(fromPeerId, {
+      id: fromPeerId, name: peerName, deviceInfo: peerName, deviceType: peerName, deviceFamily: peerFamily,
+    });
     this.notifyDevicesUpdate();
   }
 
@@ -586,18 +603,22 @@ class PeerNetworkService {
       dc.bufferedAmountLowThreshold = LOW_WATERMARK;
     }
 
+    // Use the chunk size optimal for the receiver's platform
+    const receiverFamily = this.onlineDevices.get(targetPeerId)?.deviceFamily || 'desktop';
+    const chunkSize      = getChunkSizeFor(receiverFamily);
+
     for (let i = 0; i < fileList.length; i++) {
       const current = this.senderSessions.get(targetPeerId);
       if (!current || current.status !== 'STREAMING' || current.abortController.aborted) break;
       if (!conn.open) break;
 
-      await this.streamFile(conn, dc, session.abortController, fileList[i], i + 1, fileList.length);
+      await this.streamFile(conn, dc, session.abortController, fileList[i], i + 1, fileList.length, chunkSize);
     }
 
     this.senderSessions.delete(targetPeerId);
   }
 
-  async streamFile(conn, dc, abortController, file, currentIndex, totalFiles) {
+  async streamFile(conn, dc, abortController, file, currentIndex, totalFiles, chunkSize = CHUNK_SIZE) {
     if (abortController.aborted || !conn.open) return;
 
     // 1. Send file header
