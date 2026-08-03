@@ -71,22 +71,22 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
 
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (Exact 48px Height for Easy Tapping) */}
         <div className="grid grid-cols-2 gap-3 w-full shrink-0">
           
-          {/* Elutasítás */}
+          {/* Elutasítás (Exact 48px Height) */}
           <button
             onClick={onReject}
-            className="w-full py-3 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+            className="h-12 w-full py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-extrabold text-xs sm:text-sm border border-rose-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-md"
           >
             <XCircle className="w-4 h-4 text-rose-400" />
             <span>Elutasítás</span>
           </button>
 
-          {/* Elfogadás */}
+          {/* Elfogadás (Exact 48px Height) */}
           <button
             onClick={onAccept}
-            className="w-full py-3 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs border border-blue-500/50 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+            className="h-12 w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm border border-blue-500/50 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
           >
             <CheckCircle2 className="w-4 h-4 text-white" />
             <span>Elfogadás</span>
