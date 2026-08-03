@@ -13,11 +13,13 @@ Közvetlen fájl- és képmegosztás bármilyen eszköz között – regisztrác
 ### Mi történik, ha több képet vagy videót küldesz egyszerre?
 - **Nincs ZIP tömörítés**: A fájlok eredeti minőségükben áramlanak át egyesével.
 - **Egyesített Fogadás**: A fogadó félnek a felület egyetlen **Fogadott Fájlcsomagként** mutatja az anyagokat.
-- **1-Kattintásos Galériába Mentés**: A fogadó telefonon a **"Mentés mindet a Galériába"** gombra koppintva az iOS Safari / Android Chrome az **összes fotót és videót egyszerre elmenti a telefon Fotógalériájába**!
+- **Fájlonkénti Azonnali Mentés**: Androidon és PC-n minden fájl **azonnal letöltődik, amint megérkezik** – nem kell megvárni a csomag többi tagját. iOS-on az összes fájl megérkezése után az **"Képek mentése"** gombbal egyszerre menthető a Galériába.
 
 ## Technikai Stack
 
 - **Frontend**: React 18, Vite, Tailwind CSS (Glassmorphism Dark Theme UI).
-- **P2P Engine**: Native WebRTC RTCDataChannel via PeerJS with Multi-Region STUN & Backpressure Flow Control.
-- **Mobile & Desktop Integration**: Native iOS Web Share API (`navigator.share`) + Direct Android & PC Storage Download (`a.download`).
+- **P2P Engine**: Native WebRTC RTCDataChannel via PeerJS with Multi-Region STUN (Google + Twilio).
+- **Átviteli Architektúra**: Eseményvezérelt backpressure (`bufferedamountlow`), 20 másodperces watchdog timer, byte-pontos fájlellenőrzés (`end` üzenetben `totalBytes` mező).
+- **Platform Stratégia**: Képességalapú eszközdetektálás (`canShareFiles`, `isWebKit`, `silentDownload`) – ismeretlen böngészők is automatikusan a helyes viselkedést kapják, kódmódosítás nélkül.
+- **Dinamikus Chunk Méret**: A küldő a fogadó platformja alapján választ chunk méretet (iOS/WebKit: 16 KB; Android/PC Chromium: 64 KB → ~4× gyorsabb átvitel).
 - **Hosting & CI/CD**: GitHub Pages via GitHub Actions.
