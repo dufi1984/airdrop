@@ -39,8 +39,14 @@ function buildPlatform() {
   const ua = navigator.userAgent;
 
   // ── Képesség 1: Natív fájlmegosztás (iOS Share Sheet) ─────────────────
-  // Ha ez true → a böngésző meg tudja nyitni a "Mentés a Galériába" menüt.
-  const canShareFiles = (() => {
+  // A navigator.share fájlmegosztást CSAK mobil eszközökön használjuk.
+  // Windows 11 Chrome, macOS Chrome/Firefox szintén támogatja a share API-t,
+  // de ott a Windows/macOS megosztó panel nyílik meg (Outlook, WhatsApp stb.)
+  // – ez nem hasznos, a felhasználó közvetlen letöltést vár.
+  // Ezért: canShareFiles csak akkor true, ha mobilon is vagyunk.
+  const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(ua);
+
+  const canShareFiles = isMobileDevice && (() => {
     try {
       return !!(
         navigator.share &&
