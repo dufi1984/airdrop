@@ -71,24 +71,24 @@ export default function IncomingPromptModal({ lang, incomingInfo, onAccept, onRe
 
         </div>
 
-        {/* Action Buttons (Exact 48px Height for Easy Tapping) */}
+        {/* Action Buttons (Taller 56px Height & Larger Text) */}
         <div className="grid grid-cols-2 gap-3 w-full shrink-0">
           
-          {/* Elutasítás (Exact 48px Height) */}
+          {/* Elutasítás (56px height, text-base) */}
           <button
             onClick={onReject}
-            className="h-12 w-full py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-extrabold text-xs sm:text-sm border border-rose-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-md"
+            className="h-14 w-full py-3 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-extrabold text-sm sm:text-base border border-rose-500/30 flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-95 shadow-md"
           >
-            <XCircle className="w-4 h-4 text-rose-400" />
+            <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
             <span>Elutasítás</span>
           </button>
 
-          {/* Elfogadás (Exact 48px Height) */}
+          {/* Elfogadás (56px height, text-base) */}
           <button
             onClick={onAccept}
-            className="h-12 w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm border border-blue-500/50 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+            className="h-14 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm sm:text-base border border-blue-500/50 shadow-md flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-95"
           >
-            <CheckCircle2 className="w-4 h-4 text-white" />
+            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
             <span>Elfogadás</span>
           </button>
 
