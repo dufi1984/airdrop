@@ -1,67 +1,157 @@
 import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 
-const CHUNK_SIZE = 64 * 1024; // 64KB raw binary WebRTC chunks
-const MAX_SLOTS = 6;
-const SLOT_PREFIX = 'airdrop-p2p-v5-';
+// ─────────────────────────────────────────────
+// Transfer Constants
+// ─────────────────────────────────────────────
+const CHUNK_SIZE         = 16 * 1024;   // 16 KB – safe for iOS Safari WebKit DataChannel
+const HIGH_WATERMARK     = 256 * 1024;  // Pause sending above this bufferedAmount
+const LOW_WATERMARK      = 32 * 1024;   // Resume sending at/below this (bufferedamountlow threshold)
+const CHUNK_WATCHDOG_MS  = 20_000;      // Abort if no chunk progress for 20s
+const MAX_SLOTS          = 6;
+const SLOT_PREFIX        = 'airdrop-p2p-v5-';
 
-/**
- * Clean Single-Responsibility WebRTC Peer-to-Peer Transfer Engine
- * Enhanced with Global Multi-Region STUN, Backpressure Buffer Flow Control, and Connection Disconnect Recovery
- */
+// ─────────────────────────────────────────────
+// Sender Session State Machine
+//   IDLE → PROPOSED → STREAMING → DONE | ABORTED
+// ─────────────────────────────────────────────
+function makeSenderSession(files) {
+  return {
+    files: Array.from(files),
+    status: 'PROPOSED',   // 'PROPOSED' | 'STREAMING' | 'DONE' | 'ABORTED'
+    isExecuting: false,
+    abortController: { aborted: false },
+  };
+}
+
+// ─────────────────────────────────────────────
+// Receiver Session State Machine
+//   IDLE → AWAITING_HEADER → RECEIVING → DONE | ABORTED
+// ─────────────────────────────────────────────
+function makeReceiverSession({ transferId, senderName, totalFiles, fileNames }) {
+  return {
+    transferId,
+    senderName,
+    totalFiles,
+    fileNames,
+    status: 'AWAITING_HEADER',  // 'AWAITING_HEADER' | 'RECEIVING' | 'DONE' | 'ABORTED'
+    header: null,
+    chunks: [],
+    receivedBytes: 0,
+    startTime: null,
+    watchdogTimer: null,
+  };
+}
+
+// ─────────────────────────────────────────────
+// Utility: wait for bufferedamountlow event
+// Returns a Promise that resolves when the DC
+// is ready to accept more data, or rejects on abort.
+// ─────────────────────────────────────────────
+function waitForDrain(dc, abortController) {
+  return new Promise((resolve, reject) => {
+    if (abortController.aborted) { reject(new Error('aborted')); return; }
+    if (dc.bufferedAmount <= LOW_WATERMARK) { resolve(); return; }
+
+    const onLow = () => {
+      dc.removeEventListener('bufferedamountlow', onLow);
+      resolve();
+    };
+    dc.addEventListener('bufferedamountlow', onLow);
+
+    // Safety fallback: if event never fires (some browsers), poll once after 500ms
+    const fallback = setTimeout(() => {
+      dc.removeEventListener('bufferedamountlow', onLow);
+      resolve();
+    }, 500);
+
+    // Also clean up if aborted externally
+    const abortCheck = setInterval(() => {
+      if (abortController.aborted) {
+        clearInterval(abortCheck);
+        clearTimeout(fallback);
+        dc.removeEventListener('bufferedamountlow', onLow);
+        reject(new Error('aborted'));
+      }
+    }, 100);
+  });
+}
+
+// ─────────────────────────────────────────────
+// Utility: read a file slice as ArrayBuffer
+// ─────────────────────────────────────────────
+function readSlice(file, offset, size) {
+  return new Promise((resolve, reject) => {
+    const slice = file.slice(offset, offset + size);
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsArrayBuffer(slice);
+  });
+}
+
+// ─────────────────────────────────────────────
+// Utility: safely get the native RTCDataChannel
+// Works across PeerJS v1.3–v1.5 and browsers
+// ─────────────────────────────────────────────
+function getRawDataChannel(conn) {
+  return conn._dc ?? conn.dataChannel ?? conn._channel ?? null;
+}
+
+// ═════════════════════════════════════════════
+// PeerNetworkService
+// ═════════════════════════════════════════════
 class PeerNetworkService {
   constructor() {
-    this.peer = null;
-    this.myId = null;
-    this.mySlotIndex = null;
-    this.myDeviceName = detectDeviceName();
+    this.peer           = null;
+    this.myId           = null;
+    this.mySlotIndex    = null;
+    this.myDeviceName   = detectDeviceName();
 
-    // Active DataChannel connections per target peer ID
-    this.connections = new Map();
-    // Known online devices on the network
-    this.onlineDevices = new Map();
+    this.connections    = new Map(); // peerId → PeerJS DataConnection
+    this.onlineDevices  = new Map(); // peerId → { id, name, deviceInfo, deviceType }
+    this.senderSessions = new Map(); // peerId → SenderSession
+    this.receiverSessions = new Map(); // peerId → ReceiverSession
 
-    // Sender Sessions: targetPeerId => { files: File[], status: 'PROPOSED' | 'STREAMING', isExecuting: boolean }
-    this.senderSessions = new Map();
-
-    // Receiver Sessions: senderPeerId => { transferId, senderName, totalFiles, header, chunks: ArrayBuffer[], receivedBytes: number }
-    this.receiverSessions = new Map();
-
-    // Event Callbacks
-    this.onStatusChange = null;
-    this.onDevicesUpdate = null;
-    this.onProgress = null;
-    this.onFileReceived = null;
-    this.onIncomingPrompt = null;
-    this.onRejected = null;
-    this.onCancelled = null;
+    // Callbacks (set via init())
+    this.onStatusChange    = null;
+    this.onDevicesUpdate   = null;
+    this.onProgress        = null;
+    this.onFileReceived    = null;
+    this.onIncomingPrompt  = null;
+    this.onRejected        = null;
+    this.onCancelled       = null;
     this.onTransferAborted = null;
 
-    this.probeTimer = null;
+    this.probeTimer  = null;
     this.isDestroyed = false;
   }
 
-  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected, onCancelled, onTransferAborted) {
-    this.onStatusChange = onStatusChange;
-    this.onDevicesUpdate = onDevicesUpdate;
-    this.onProgress = onProgress;
-    this.onFileReceived = onFileReceived;
-    this.onIncomingPrompt = onIncomingPrompt;
-    this.onRejected = onRejected;
-    this.onCancelled = onCancelled;
+  // ─────────────────────────────────────────
+  // Public: init
+  // ─────────────────────────────────────────
+  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived,
+       onIncomingPrompt, onRejected, onCancelled, onTransferAborted) {
+    this.onStatusChange    = onStatusChange;
+    this.onDevicesUpdate   = onDevicesUpdate;
+    this.onProgress        = onProgress;
+    this.onFileReceived    = onFileReceived;
+    this.onIncomingPrompt  = onIncomingPrompt;
+    this.onRejected        = onRejected;
+    this.onCancelled       = onCancelled;
     this.onTransferAborted = onTransferAborted;
-    this.isDestroyed = false;
-
+    this.isDestroyed       = false;
     this.tryClaimSlot(1);
   }
 
+  // ─────────────────────────────────────────
+  // Slot Claiming & PeerJS Init
+  // ─────────────────────────────────────────
   tryClaimSlot(slotIndex) {
     if (slotIndex > MAX_SLOTS || this.isDestroyed) return;
-
     const slotId = `${SLOT_PREFIX}${slotIndex}`;
 
     try {
-      // Enhanced Multi-Region STUN/ICE Server Config for Global Inter-Continental NAT Hole Punching
       const peer = new Peer(slotId, {
         host: '0.peerjs.com',
         port: 443,
@@ -75,22 +165,17 @@ class PeerNetworkService {
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
+            { urls: 'stun:global.stun.twilio.com:3478' },
+          ],
+        },
       });
 
       peer.on('open', (id) => {
         this.peer = peer;
         this.myId = id;
         this.mySlotIndex = slotIndex;
-
         if (this.onStatusChange) this.onStatusChange(true);
-
-        this.peer.on('connection', (conn) => {
-          this.setupConnectionEvents(conn);
-        });
-
+        this.peer.on('connection', (conn) => this.setupConnectionEvents(conn));
         this.startProbing();
       });
 
@@ -99,98 +184,92 @@ class PeerNetworkService {
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
         } else {
-          console.warn('[PeerJS] Init notice:', err.type);
+          console.warn('[Peer] Error:', err.type, err.message);
         }
       });
 
       peer.on('disconnected', () => {
         if (this.onStatusChange) this.onStatusChange(false);
         if (this.peer && !this.peer.destroyed) {
-          setTimeout(() => {
-            try { this.peer.reconnect(); } catch (e) {}
-          }, 1000);
+          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1500);
         }
       });
     } catch (e) {
-      console.error('[PeerJS] Init Exception:', e);
+      console.error('[Peer] Init exception:', e);
     }
   }
 
+  // ─────────────────────────────────────────
+  // Device Discovery / Probing
+  // ─────────────────────────────────────────
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => {
-      this.probeOtherSlots();
-    }, 4000);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 4000);
   }
 
   probeOtherSlots() {
     if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
-
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (i === this.mySlotIndex) continue;
-
-      const targetSlotId = `${SLOT_PREFIX}${i}`;
-      const existingConn = this.connections.get(targetSlotId);
-      if (!existingConn || !existingConn.open) {
-        this.connectToSlot(targetSlotId);
-      }
+      const targetId = `${SLOT_PREFIX}${i}`;
+      const existing = this.connections.get(targetId);
+      if (!existing || !existing.open) this.connectToSlot(targetId);
     }
-
     this.notifyDevicesUpdate();
   }
 
   connectToSlot(targetSlotId) {
     if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
-
     try {
       const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
-        reliable: true
+        reliable: true,
       });
-
       this.setupConnectionEvents(conn);
-    } catch (err) {}
+    } catch (_) {}
   }
 
+  // ─────────────────────────────────────────
+  // Connection Lifecycle
+  // ─────────────────────────────────────────
   setupConnectionEvents(conn) {
     conn.on('open', () => {
-      const peerDeviceInfo = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
+      const peerName = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
-        id: conn.peer,
-        deviceInfo: peerDeviceInfo,
-        deviceType: peerDeviceInfo,
-        name: peerDeviceInfo
+        id: conn.peer, name: peerName, deviceInfo: peerName, deviceType: peerName,
       });
 
+      // Configure native DataChannel for event-driven backpressure
+      const dc = getRawDataChannel(conn);
+      if (dc) {
+        dc.bufferedAmountLowThreshold = LOW_WATERMARK;
+      }
+
       try {
-        conn.send(JSON.stringify({
-          type: 'handshake',
-          deviceInfo: this.myDeviceName,
-          deviceType: this.myDeviceName
-        }));
-      } catch (e) {}
+        conn.send(JSON.stringify({ type: 'handshake', deviceInfo: this.myDeviceName, deviceType: this.myDeviceName }));
+      } catch (_) {}
 
       this.notifyDevicesUpdate();
     });
 
-    conn.on('data', (data) => {
-      this.handleIncomingData(conn.peer, data);
-    });
-
-    conn.on('close', () => {
-      this.cleanupPeerSession(conn.peer);
-    });
-
-    conn.on('error', () => {
-      this.cleanupPeerSession(conn.peer);
-    });
+    conn.on('data', (data) => this.handleIncomingData(conn.peer, data));
+    conn.on('close', () => this.cleanupPeerSession(conn.peer));
+    conn.on('error', () => this.cleanupPeerSession(conn.peer));
   }
 
   cleanupPeerSession(peerId) {
-    const hadActiveSender = this.senderSessions.has(peerId);
+    const hadActiveSender   = this.senderSessions.has(peerId);
     const hadActiveReceiver = this.receiverSessions.has(peerId);
+
+    // Abort any active sender transfer
+    const senderSession = this.senderSessions.get(peerId);
+    if (senderSession) senderSession.abortController.aborted = true;
+
+    // Clear any receiver watchdog
+    const receiverSession = this.receiverSessions.get(peerId);
+    if (receiverSession?.watchdogTimer) clearTimeout(receiverSession.watchdogTimer);
 
     this.connections.delete(peerId);
     this.onlineDevices.delete(peerId);
@@ -205,361 +284,426 @@ class PeerNetworkService {
   }
 
   notifyDevicesUpdate() {
-    const list = [
-      { id: this.myId, deviceInfo: this.myDeviceName, deviceType: this.myDeviceName, name: this.myDeviceName, isSelf: true },
-      ...Array.from(this.onlineDevices.values()).map(p => ({
-        ...p,
-        deviceType: p.deviceType || p.deviceInfo || p.name || 'Eszköz',
-        deviceInfo: p.deviceType || p.deviceInfo || p.name || 'Eszköz',
-        name: p.deviceType || p.deviceInfo || p.name || 'Eszköz'
-      }))
-    ];
-    if (this.onDevicesUpdate) this.onDevicesUpdate(list);
+    const self = { id: this.myId, name: this.myDeviceName, deviceInfo: this.myDeviceName, deviceType: this.myDeviceName, isSelf: true };
+    const peers = Array.from(this.onlineDevices.values()).map(p => ({
+      ...p,
+      name:       p.name       || p.deviceInfo || 'Eszköz',
+      deviceInfo: p.deviceInfo || p.name       || 'Eszköz',
+      deviceType: p.deviceType || p.name       || 'Eszköz',
+    }));
+    if (this.onDevicesUpdate) this.onDevicesUpdate([self, ...peers]);
   }
 
-  // --- Centralized WebRTC Data Message Handler ---
+  // ─────────────────────────────────────────
+  // Central Message Router
+  // ─────────────────────────────────────────
   handleIncomingData(fromPeerId, data) {
-    if (typeof data === 'string') {
-      try {
-        const msg = JSON.parse(data);
+    // ── Binary chunk ──────────────────────
+    if (data instanceof ArrayBuffer || data?.buffer instanceof ArrayBuffer) {
+      this.handleIncomingChunk(fromPeerId, data instanceof ArrayBuffer ? data : data.buffer);
+      return;
+    }
 
-        // 1. Handshake Message
-        if (msg.type === 'handshake') {
-          const peerName = msg.deviceType || msg.deviceInfo || 'Eszköz';
-          this.onlineDevices.set(fromPeerId, {
-            id: fromPeerId,
-            deviceInfo: peerName,
-            deviceType: peerName,
-            name: peerName
-          });
-          this.notifyDevicesUpdate();
-          return;
-        }
+    // ── JSON control message ──────────────
+    if (typeof data !== 'string') return;
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
 
-        // 2. Incoming Transfer Proposal from Sender
-        if (msg.type === 'propose_transfer') {
-          const senderInfo = this.onlineDevices.get(fromPeerId);
-          const senderName = msg.senderName || senderInfo?.deviceType || 'Online Eszköz';
-
-          // Initialize clean receiver session state
-          this.receiverSessions.set(fromPeerId, {
-            transferId: msg.transferId || Date.now(),
-            senderName,
-            totalFiles: msg.totalFiles,
-            fileNames: msg.fileNames || [msg.fileName],
-            chunks: [],
-            receivedBytes: 0,
-            header: null,
-            startTime: null
-          });
-
-          if (this.onIncomingPrompt) {
-            this.onIncomingPrompt({
-              transferId: msg.transferId || Date.now(),
-              fromPeerId,
-              senderName,
-              totalFiles: msg.totalFiles,
-              fileName: msg.fileName,
-              fileNames: msg.fileNames || [msg.fileName]
-            });
-          }
-          return;
-        }
-
-        // 3. Sender Cancelled Proposed Transfer
-        if (msg.type === 'cancel_proposed_transfer') {
-          this.receiverSessions.delete(fromPeerId);
-          if (this.onCancelled) this.onCancelled(fromPeerId);
-          return;
-        }
-
-        // 4. Receiver Accepted Transfer -> Sender starts streaming!
-        if (msg.type === 'accept_transfer') {
-          const session = this.senderSessions.get(fromPeerId);
-          if (session && session.files && !session.isExecuting) {
-            session.status = 'STREAMING';
-            this.executeSendFiles(fromPeerId, session.files);
-          }
-          return;
-        }
-
-        // 5. Receiver Rejected Transfer -> Sender stops session
-        if (msg.type === 'reject_transfer') {
-          this.senderSessions.delete(fromPeerId);
-          if (this.onRejected) this.onRejected(fromPeerId);
-          return;
-        }
-
-        // 6. Incoming File Header
-        if (msg.type === 'header') {
-          const session = this.receiverSessions.get(fromPeerId) || {};
-          session.header = msg;
-          session.chunks = [];
-          session.receivedBytes = 0;
-          session.startTime = Date.now();
-          this.receiverSessions.set(fromPeerId, session);
-          return;
-        }
-
-        // 7. Incoming File End Signal
-        if (msg.type === 'end') {
-          const session = this.receiverSessions.get(fromPeerId);
-          if (session && session.header && session.chunks.length > 0) {
-            const blob = new Blob(session.chunks, { type: session.header.mimeType });
-            const file = new File([blob], session.header.name, { type: session.header.mimeType });
-
-            if (this.onFileReceived) {
-              this.onFileReceived({
-                file,
-                blobUrl: URL.createObjectURL(blob),
-                name: session.header.name,
-                size: session.header.size,
-                mimeType: session.header.mimeType,
-                currentIndex: session.header.currentIndex || 1,
-                totalFiles: session.header.totalFiles || 1,
-                fromPeerId
-              });
-            }
-          }
-
-          // Clean session if this was the final file
-          if (session?.header?.currentIndex >= session?.header?.totalFiles) {
-            this.receiverSessions.delete(fromPeerId);
-          }
-          return;
-        }
-      } catch (err) {
-        console.error('[PeerJS] JSON Message Error:', err);
-      }
-    } 
-    else if (data instanceof ArrayBuffer || data?.buffer instanceof ArrayBuffer) {
-      // 8. Raw Binary WebRTC Chunk Stream
-      const buffer = data instanceof ArrayBuffer ? data : data.buffer;
-      const session = this.receiverSessions.get(fromPeerId);
-      if (!session || !session.header) return;
-
-      session.chunks.push(buffer);
-      session.receivedBytes += buffer.byteLength;
-
-      const elapsed = (Date.now() - (session.startTime || Date.now())) / 1000;
-      const speed = elapsed > 0 ? session.receivedBytes / elapsed : 0;
-      const remainingBytes = session.header.size - session.receivedBytes;
-      const eta = speed > 0 ? remainingBytes / speed : 0;
-      const progress = Math.min(100, Math.round((session.receivedBytes / session.header.size) * 100));
-
-      if (this.onProgress) {
-        this.onProgress({
-          direction: 'receive',
-          fileName: session.header.name,
-          fileSize: session.header.size,
-          progress,
-          speed,
-          eta,
-          currentIndex: session.header.currentIndex,
-          totalFiles: session.header.totalFiles
-        });
-      }
+    switch (msg.type) {
+      case 'handshake':              return this.onHandshake(fromPeerId, msg);
+      case 'propose_transfer':       return this.onProposeTransfer(fromPeerId, msg);
+      case 'cancel_proposed_transfer': return this.onCancelProposedTransfer(fromPeerId);
+      case 'accept_transfer':        return this.onAcceptTransfer(fromPeerId);
+      case 'reject_transfer':        return this.onRejectTransfer(fromPeerId);
+      case 'header':                 return this.onFileHeader(fromPeerId, msg);
+      case 'end':                    return this.onFileEnd(fromPeerId, msg);
+      default:
+        console.warn('[Peer] Unknown message type:', msg.type);
     }
   }
 
-  // --- Receiver Actions ---
+  // ─────────────────────────────────────────
+  // Message Handlers (Receiver Side)
+  // ─────────────────────────────────────────
+  onHandshake(fromPeerId, msg) {
+    const peerName = msg.deviceType || msg.deviceInfo || 'Eszköz';
+    this.onlineDevices.set(fromPeerId, { id: fromPeerId, name: peerName, deviceInfo: peerName, deviceType: peerName });
+    this.notifyDevicesUpdate();
+  }
 
+  onProposeTransfer(fromPeerId, msg) {
+    const senderInfo = this.onlineDevices.get(fromPeerId);
+    const senderName = msg.senderName || senderInfo?.name || 'Online Eszköz';
+
+    const session = makeReceiverSession({
+      transferId: msg.transferId || Date.now(),
+      senderName,
+      totalFiles: msg.totalFiles,
+      fileNames: msg.fileNames || [msg.fileName],
+    });
+    this.receiverSessions.set(fromPeerId, session);
+
+    if (this.onIncomingPrompt) {
+      this.onIncomingPrompt({
+        transferId: session.transferId,
+        fromPeerId,
+        senderName,
+        totalFiles: msg.totalFiles,
+        fileName: msg.fileName,
+        fileNames: session.fileNames,
+      });
+    }
+  }
+
+  onCancelProposedTransfer(fromPeerId) {
+    const session = this.receiverSessions.get(fromPeerId);
+    if (session?.watchdogTimer) clearTimeout(session.watchdogTimer);
+    this.receiverSessions.delete(fromPeerId);
+    if (this.onCancelled) this.onCancelled(fromPeerId);
+  }
+
+  onFileHeader(fromPeerId, msg) {
+    const session = this.receiverSessions.get(fromPeerId);
+    if (!session || session.status === 'ABORTED') return;
+
+    // Clear previous watchdog before starting new file
+    if (session.watchdogTimer) clearTimeout(session.watchdogTimer);
+
+    session.header       = msg;
+    session.chunks       = [];
+    session.receivedBytes = 0;
+    session.startTime    = Date.now();
+    session.status       = 'RECEIVING';
+
+    // Watchdog: abort if no bytes arrive for CHUNK_WATCHDOG_MS
+    session.watchdogTimer = this.startReceiverWatchdog(fromPeerId);
+  }
+
+  handleIncomingChunk(fromPeerId, buffer) {
+    const session = this.receiverSessions.get(fromPeerId);
+    if (!session || !session.header || session.status !== 'RECEIVING') return;
+
+    // Reset watchdog on every chunk received
+    if (session.watchdogTimer) clearTimeout(session.watchdogTimer);
+    session.watchdogTimer = this.startReceiverWatchdog(fromPeerId);
+
+    session.chunks.push(buffer);
+    session.receivedBytes += buffer.byteLength;
+
+    // Emit progress
+    const elapsed  = Math.max((Date.now() - session.startTime) / 1000, 0.001);
+    const speed    = session.receivedBytes / elapsed;
+    const remaining = Math.max(session.header.size - session.receivedBytes, 0);
+    const eta      = speed > 0 ? remaining / speed : 0;
+    const progress = Math.min(100, Math.round((session.receivedBytes / session.header.size) * 100));
+
+    if (this.onProgress) {
+      this.onProgress({
+        direction: 'receive',
+        fileName: session.header.name,
+        fileSize: session.header.size,
+        progress, speed, eta,
+        currentIndex: session.header.currentIndex,
+        totalFiles:   session.header.totalFiles,
+      });
+    }
+  }
+
+  onFileEnd(fromPeerId, msg) {
+    const session = this.receiverSessions.get(fromPeerId);
+    if (!session || !session.header) return;
+
+    // Clear watchdog – transfer finished (success or error)
+    if (session.watchdogTimer) clearTimeout(session.watchdogTimer);
+    session.watchdogTimer = null;
+
+    const expectedBytes = msg.totalBytes ?? session.header.size;
+    const isComplete    = session.receivedBytes === expectedBytes;
+
+    if (!isComplete) {
+      // Csonka fájl – eldobjuk és jelzünk hibát
+      console.error(
+        `[Peer] Incomplete file "${session.header.name}": ` +
+        `got ${session.receivedBytes}B, expected ${expectedBytes}B. Discarding.`
+      );
+      session.status = 'ABORTED';
+      if (this.onTransferAborted) this.onTransferAborted(fromPeerId);
+      // Reset session for next file attempt without deleting entire receiver session
+      session.header        = null;
+      session.chunks        = [];
+      session.receivedBytes = 0;
+      return;
+    }
+
+    // ✅ Fájl teljes – összerakjuk
+    const blob = new Blob(session.chunks, { type: session.header.mimeType });
+    const file = new File([blob], session.header.name, { type: session.header.mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+
+    if (this.onFileReceived) {
+      this.onFileReceived({
+        file, blobUrl,
+        name:         session.header.name,
+        size:         session.header.size,
+        mimeType:     session.header.mimeType,
+        currentIndex: session.header.currentIndex || 1,
+        totalFiles:   session.header.totalFiles   || 1,
+        fromPeerId,
+      });
+    }
+
+    // Ha ez volt az utolsó fájl → session lezárása
+    if ((session.header.currentIndex || 1) >= (session.header.totalFiles || 1)) {
+      session.status = 'DONE';
+      this.receiverSessions.delete(fromPeerId);
+    } else {
+      // Még jönnek fájlok – visszaállítjuk AWAITING_HEADER állapotra
+      session.status        = 'AWAITING_HEADER';
+      session.header        = null;
+      session.chunks        = [];
+      session.receivedBytes = 0;
+    }
+  }
+
+  // Watchdog timer: ha CHUNK_WATCHDOG_MS ideig nem érkezik adat → abort
+  startReceiverWatchdog(fromPeerId) {
+    return setTimeout(() => {
+      const session = this.receiverSessions.get(fromPeerId);
+      if (!session || session.status !== 'RECEIVING') return;
+      console.warn(`[Peer] Receiver watchdog fired for ${fromPeerId} – aborting stuck transfer.`);
+      session.status = 'ABORTED';
+      this.receiverSessions.delete(fromPeerId);
+      if (this.onTransferAborted) this.onTransferAborted(fromPeerId);
+    }, CHUNK_WATCHDOG_MS);
+  }
+
+  // ─────────────────────────────────────────
+  // Message Handlers (Sender Side)
+  // ─────────────────────────────────────────
+  onAcceptTransfer(fromPeerId) {
+    const session = this.senderSessions.get(fromPeerId);
+    if (!session || session.isExecuting || session.status !== 'PROPOSED') return;
+    session.status = 'STREAMING';
+    this.executeSendFiles(fromPeerId, session.files);
+  }
+
+  onRejectTransfer(fromPeerId) {
+    this.senderSessions.delete(fromPeerId);
+    if (this.onRejected) this.onRejected(fromPeerId);
+  }
+
+  // ─────────────────────────────────────────
+  // Public: Receiver Actions
+  // ─────────────────────────────────────────
   acceptIncoming(fromPeerId) {
     const conn = this.connections.get(fromPeerId);
-    if (conn && conn.open) {
-      try {
-        conn.send(JSON.stringify({ type: 'accept_transfer' }));
-      } catch (e) {}
+    if (conn?.open) {
+      try { conn.send(JSON.stringify({ type: 'accept_transfer' })); } catch (_) {}
     }
   }
 
   rejectIncoming(fromPeerId) {
     const conn = this.connections.get(fromPeerId);
-    if (conn && conn.open) {
-      try {
-        conn.send(JSON.stringify({ type: 'reject_transfer' }));
-      } catch (e) {}
+    if (conn?.open) {
+      try { conn.send(JSON.stringify({ type: 'reject_transfer' })); } catch (_) {}
     }
+    const session = this.receiverSessions.get(fromPeerId);
+    if (session?.watchdogTimer) clearTimeout(session.watchdogTimer);
     this.receiverSessions.delete(fromPeerId);
   }
 
-  // --- Sender Actions ---
-
+  // ─────────────────────────────────────────
+  // Public: Sender Actions
+  // ─────────────────────────────────────────
   cancelProposedSend(targetPeerId) {
     const conn = this.connections.get(targetPeerId);
-    if (conn && conn.open) {
-      try {
-        conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' }));
-      } catch (e) {}
+    if (conn?.open) {
+      try { conn.send(JSON.stringify({ type: 'cancel_proposed_transfer' })); } catch (_) {}
     }
+    const session = this.senderSessions.get(targetPeerId);
+    if (session) session.abortController.aborted = true;
     this.senderSessions.delete(targetPeerId);
   }
 
   async sendFilesToPeer(targetPeerId, fileList) {
     if (!fileList || fileList.length === 0) return;
 
-    // Register clean sender session
-    this.senderSessions.set(targetPeerId, {
-      files: Array.from(fileList),
-      status: 'PROPOSED',
-      isExecuting: false
-    });
+    this.senderSessions.set(targetPeerId, makeSenderSession(fileList));
 
-    const safeFileNames = Array.from(fileList).slice(0, 10).map((f) => f.name);
     const payload = JSON.stringify({
-      type: 'propose_transfer',
-      transferId: Date.now() + Math.random(),
-      senderName: this.myDeviceName,
-      totalFiles: fileList.length,
-      fileName: fileList[0]?.name || 'Fájl',
-      fileNames: safeFileNames
+      type:        'propose_transfer',
+      transferId:  Date.now() + Math.random(),
+      senderName:  this.myDeviceName,
+      totalFiles:  fileList.length,
+      fileName:    fileList[0]?.name || 'Fájl',
+      fileNames:   Array.from(fileList).slice(0, 10).map(f => f.name),
     });
 
     let conn = this.connections.get(targetPeerId);
-    let sentSuccessfully = false;
+    let sent = false;
 
-    // 1. Send over existing open channel
-    if (conn && conn.open) {
-      try {
-        conn.send(payload);
-        sentSuccessfully = true;
-      } catch (err) {
-        this.connections.delete(targetPeerId);
-      }
+    if (conn?.open) {
+      try { conn.send(payload); sent = true; } catch (_) { this.connections.delete(targetPeerId); }
     }
 
-    // 2. If channel was closed or failed, establish fresh channel and send
-    if (!sentSuccessfully) {
+    if (!sent) {
       this.connectToSlot(targetPeerId);
-      for (let attempt = 0; attempt < 20; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 100));
         conn = this.connections.get(targetPeerId);
-        if (conn && conn.open) {
-          try {
-            conn.send(payload);
-            sentSuccessfully = true;
-            break;
-          } catch (e) {}
+        if (conn?.open) {
+          try { conn.send(payload); sent = true; break; } catch (_) {}
         }
       }
     }
   }
 
   async sendFilesToAll(fileList) {
-    const activePeers = Array.from(this.connections.keys());
-    for (const peerId of activePeers) {
+    const peerIds = Array.from(this.connections.keys());
+    for (const peerId of peerIds) {
       await this.sendFilesToPeer(peerId, fileList);
     }
   }
 
+  // ─────────────────────────────────────────
+  // Core Transfer Engine
+  // ─────────────────────────────────────────
   async executeSendFiles(targetPeerId, fileList) {
     const session = this.senderSessions.get(targetPeerId);
-    if (!session || session.isExecuting) return; // Prevent double execution loops!
+    if (!session || session.isExecuting) return;
     session.isExecuting = true;
 
     const conn = this.connections.get(targetPeerId);
-    if (!conn || !conn.open) return;
+    if (!conn?.open) {
+      session.abortController.aborted = true;
+      this.senderSessions.delete(targetPeerId);
+      return;
+    }
+
+    // Get raw DataChannel once – safe across PeerJS versions
+    const dc = getRawDataChannel(conn);
+    if (dc && dc.bufferedAmountLowThreshold !== undefined) {
+      dc.bufferedAmountLowThreshold = LOW_WATERMARK;
+    }
 
     for (let i = 0; i < fileList.length; i++) {
-      const currentSession = this.senderSessions.get(targetPeerId);
-      if (!currentSession || currentSession.status !== 'STREAMING') break;
+      const current = this.senderSessions.get(targetPeerId);
+      if (!current || current.status !== 'STREAMING' || current.abortController.aborted) break;
+      if (!conn.open) break;
 
-      const file = fileList[i];
-      await this.sendFileToConn(conn, file, i + 1, fileList.length);
+      await this.streamFile(conn, dc, session.abortController, fileList[i], i + 1, fileList.length);
     }
 
     this.senderSessions.delete(targetPeerId);
   }
 
-  async sendFileToConn(conn, file, currentIndex, totalFiles) {
-    return new Promise((resolve) => {
+  async streamFile(conn, dc, abortController, file, currentIndex, totalFiles) {
+    if (abortController.aborted || !conn.open) return;
+
+    // 1. Send file header
+    try {
       conn.send(JSON.stringify({
         type: 'header',
         name: file.name,
         size: file.size,
         mimeType: file.type || 'application/octet-stream',
         currentIndex,
-        totalFiles
+        totalFiles,
       }));
+    } catch (e) {
+      abortController.aborted = true;
+      return;
+    }
 
-      let offset = 0;
-      const startTime = Date.now();
-      const reader = new FileReader();
+    const startTime = Date.now();
+    let offset      = 0;
 
-      const sendNextChunk = async () => {
-        const session = this.senderSessions.get(conn.peer);
-        if (offset >= file.size || !session || session.status !== 'STREAMING') {
-          try {
-            conn.send(JSON.stringify({ type: 'end', name: file.name }));
-          } catch (e) {}
-          resolve();
-          return;
-        }
+    // 2. Stream binary chunks with event-driven backpressure
+    while (offset < file.size) {
+      if (abortController.aborted || !conn.open) return;
 
-        // WebRTC DataChannel backpressure flow control to prevent buffer overflow & image corruption!
-        const dc = conn.dataChannel || conn._channel;
-        if (dc && dc.bufferedAmount > 256 * 1024) {
-          for (let i = 0; i < 50; i++) {
-            if (!dc || dc.bufferedAmount < 64 * 1024) break;
-            await new Promise((r) => setTimeout(r, 20));
-          }
-        }
-
-        const slice = file.slice(offset, offset + CHUNK_SIZE);
-        reader.readAsArrayBuffer(slice);
-      };
-
-      reader.onload = (e) => {
-        const session = this.senderSessions.get(conn.peer);
-        if (!conn || !conn.open || !session || session.status !== 'STREAMING') {
-          resolve();
-          return;
-        }
-
-        const chunkBuffer = e.target.result;
+      // Wait for buffer to drain before sending next chunk (event-driven, not polling)
+      if (dc && dc.bufferedAmount > HIGH_WATERMARK) {
         try {
-          conn.send(chunkBuffer);
-        } catch (err) {
-          resolve();
-          return;
+          await waitForDrain(dc, abortController);
+        } catch {
+          return; // aborted
         }
+      }
 
-        offset += chunkBuffer.byteLength;
+      if (abortController.aborted || !conn.open) return;
 
-        const now = Date.now();
-        const elapsed = (now - startTime) / 1000;
-        const speed = elapsed > 0 ? offset / elapsed : 0;
-        const remainingBytes = file.size - offset;
-        const eta = speed > 0 ? remainingBytes / speed : 0;
-        const progress = Math.min(100, Math.round((offset / file.size) * 100));
+      // Read next slice
+      let chunkBuffer;
+      try {
+        chunkBuffer = await readSlice(file, offset, CHUNK_SIZE);
+      } catch (e) {
+        console.error('[Peer] FileReader error, aborting transfer:', e);
+        abortController.aborted = true;
+        return;
+      }
 
-        if (this.onProgress) {
-          this.onProgress({
-            direction: 'send',
-            fileName: file.name,
-            fileSize: file.size,
-            progress,
-            speed,
-            eta,
-            currentIndex,
-            totalFiles
-          });
-        }
+      if (abortController.aborted || !conn.open) return;
 
-        setTimeout(sendNextChunk, 2);
-      };
+      // Send binary chunk
+      try {
+        conn.send(chunkBuffer);
+      } catch (e) {
+        console.error('[Peer] DataChannel send error:', e);
+        abortController.aborted = true;
+        return;
+      }
 
-      sendNextChunk();
-    });
+      offset += chunkBuffer.byteLength;
+
+      // Emit sender-side progress
+      const elapsed   = Math.max((Date.now() - startTime) / 1000, 0.001);
+      const speed     = offset / elapsed;
+      const remaining = Math.max(file.size - offset, 0);
+      const eta       = speed > 0 ? remaining / speed : 0;
+      const progress  = Math.min(100, Math.round((offset / file.size) * 100));
+
+      if (this.onProgress) {
+        this.onProgress({
+          direction: 'send',
+          fileName: file.name,
+          fileSize: file.size,
+          progress, speed, eta,
+          currentIndex, totalFiles,
+        });
+      }
+    }
+
+    // 3. Send end signal with exact byte count so receiver can validate completeness
+    if (!abortController.aborted && conn.open) {
+      try {
+        conn.send(JSON.stringify({ type: 'end', name: file.name, totalBytes: file.size }));
+      } catch (_) {}
+    }
   }
 
+  // ─────────────────────────────────────────
+  // Public: Teardown
+  // ─────────────────────────────────────────
   destroy() {
     this.isDestroyed = true;
     if (this.probeTimer) clearInterval(this.probeTimer);
+
+    // Abort all active sender transfers
+    for (const session of this.senderSessions.values()) {
+      session.abortController.aborted = true;
+    }
+
+    // Clear all receiver watchdog timers
+    for (const session of this.receiverSessions.values()) {
+      if (session.watchdogTimer) clearTimeout(session.watchdogTimer);
+    }
+
     if (this.peer) {
-      try { this.peer.destroy(); } catch (e) {}
+      try { this.peer.destroy(); } catch (_) {}
       this.peer = null;
     }
+
     this.connections.clear();
     this.onlineDevices.clear();
     this.senderSessions.clear();
