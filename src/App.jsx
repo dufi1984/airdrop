@@ -20,6 +20,7 @@ export default function App() {
   const [receivedFiles, setReceivedFiles] = useState([]);
   const [transferState, setTransferState] = useState(null);
   const [pendingSendPeers, setPendingSendPeers] = useState(new Set());
+  const [autoSavedFiles, setAutoSavedFiles] = useState(new Set()); // names of files already auto-downloaded
 
   const [showQrModal, setShowQrModal] = useState(false);
   const [incomingPrompt, setIncomingPrompt] = useState(null);
@@ -55,12 +56,33 @@ export default function App() {
         }
       },
       (receivedFileData) => {
+        // Reset list on first file of a new batch
         if (receivedFileData.currentIndex === 1) {
           setReceivedFiles([receivedFileData]);
+          setAutoSavedFiles(new Set());
         } else {
           setReceivedFiles((prev) => [...prev, receivedFileData]);
         }
-        
+
+        // Android & PC: auto-download each file the moment it fully arrives
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isIOS) {
+          try {
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            link.href = receivedFileData.blobUrl;
+            link.download = receivedFileData.name;
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              if (document.body.contains(link)) document.body.removeChild(link);
+            }, 500);
+            setAutoSavedFiles((prev) => new Set([...prev, receivedFileData.name]));
+          } catch (e) {
+            console.warn('Auto-download failed, fallback to manual:', e);
+          }
+        }
+
         if (receivedFileData.currentIndex >= receivedFileData.totalFiles) {
           setTransferState(null);
         }
@@ -178,6 +200,7 @@ export default function App() {
 
   const handleClearReceived = () => {
     setReceivedFiles([]);
+    setAutoSavedFiles(new Set());
   };
 
   return (
@@ -230,6 +253,7 @@ export default function App() {
           lang={lang}
           receivedFiles={receivedFiles}
           transferState={transferState}
+          autoSavedFiles={autoSavedFiles}
           onClearReceived={handleClearReceived}
         />
 

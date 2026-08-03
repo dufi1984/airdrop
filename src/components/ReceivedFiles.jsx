@@ -3,7 +3,7 @@ import { Download, Film, FileText, CheckCircle2, X, ChevronDown, ChevronUp, Load
 import { translations } from '../i18n/translations';
 import { formatBytes } from '../utils/formatters';
 
-export default function ReceivedFiles({ lang, receivedFiles, transferState, onClearReceived }) {
+export default function ReceivedFiles({ lang, receivedFiles, transferState, autoSavedFiles = new Set(), onClearReceived }) {
   const t = translations[lang];
   const containerRef = useRef(null);
   const autoTriggeredBatchIdRef = useRef(null);
@@ -74,7 +74,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     handleDirectDownloadAll();
   };
 
-  // Single Item Action: Save 1 file to Photo Gallery on iOS or Download directly on Android/PC
+  // Single Item Action: manual save for iOS, or re-download for Android/PC
   const handleSaveSingleItem = async (item) => {
     if (isIOS) {
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [item.file] })) {
@@ -91,7 +91,7 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
       return;
     }
 
-    // Direct Download for Android & Desktop PC
+    // Re-download for Android & Desktop PC
     try {
       const a = document.createElement('a');
       a.style.display = 'none';
@@ -107,22 +107,12 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     }
   };
 
-  // Auto-scroll and trigger batch download ONCE on PC when files arrive
+  // Auto-scroll when new files arrive
   useEffect(() => {
-    if (isPackageComplete && uniqueReceivedFiles.length > 0 && containerRef.current) {
+    if (uniqueReceivedFiles.length > 0 && containerRef.current) {
       containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-      const batchId = uniqueReceivedFiles.map((f) => f.name).join('_');
-      
-      if (!isMobile && autoTriggeredBatchIdRef.current !== batchId) {
-        autoTriggeredBatchIdRef.current = batchId;
-        const timer = setTimeout(() => {
-          handleDirectDownloadAll();
-        }, 200);
-        return () => clearTimeout(timer);
-      }
     }
-  }, [uniqueReceivedFiles, isPackageComplete, isMobile]);
+  }, [uniqueReceivedFiles.length]);
 
   if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return null;
 
@@ -151,10 +141,8 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
   };
 
   const getSaveButtonText = () => {
-    if (isIOS) {
-      return uniqueReceivedFiles.length > 1 ? 'Képek mentése' : 'Kép mentése';
-    }
-    return 'Mind letöltése';
+    // Only shown on iOS – Android/PC get per-file auto-download instead
+    return uniqueReceivedFiles.length > 1 ? 'Képek mentése' : 'Kép mentése';
   };
 
   const getToggleText = () => {
@@ -205,8 +193,8 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
         </button>
       </div>
 
-      {/* Main Action Button (ONLY appears after the LAST file has fully arrived!) */}
-      {isPackageComplete && (
+      {/* iOS-only: bulk save button after last file arrives */}
+      {isPackageComplete && isIOS && (
         <button
           onClick={handleSaveOrDownloadAll}
           className="w-full py-4 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl hover:opacity-95 active:scale-[0.98] flex items-center justify-center gap-2.5 transition-all border border-blue-400/40 cursor-pointer animate-fade-in"
@@ -247,14 +235,31 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
                 </div>
               </div>
 
-              {/* High Contrast Individual Item Download Button */}
-              <button
-                onClick={() => handleSaveSingleItem(item)}
-                className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 hover:bg-zinc-800 hover:border-zinc-500 hover:text-white transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
-                title={isIOS ? "Mentés a galériába" : "Letöltés gépre/telefonra"}
-              >
-                <Download className="w-4.5 h-4.5 text-zinc-100" />
-              </button>
+              {/* Checkmark if auto-saved, manual save button for iOS, re-download for Android/PC */}
+              {isIOS ? (
+                <button
+                  onClick={() => handleSaveSingleItem(item)}
+                  className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 hover:bg-zinc-800 hover:border-zinc-500 hover:text-white transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
+                  title="Mentés a galériába"
+                >
+                  <Download className="w-4 h-4 text-zinc-100" />
+                </button>
+              ) : autoSavedFiles.has(item.name) ? (
+                <div
+                  className="p-2.5 rounded-xl bg-emerald-900/40 border border-emerald-500/40 shrink-0 flex items-center justify-center"
+                  title="Automatikusan elmentve"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleSaveSingleItem(item)}
+                  className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 hover:bg-zinc-800 hover:border-zinc-500 hover:text-white transition-all shrink-0 flex items-center justify-center shadow-md active:scale-95 cursor-pointer"
+                  title="Letöltés újra"
+                >
+                  <Download className="w-4 h-4 text-zinc-100" />
+                </button>
+              )}
             </div>
           ))}
         </div>
