@@ -33,12 +33,19 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     if (!uniqueReceivedFiles || uniqueReceivedFiles.length === 0) return;
     uniqueReceivedFiles.forEach((item, index) => {
       setTimeout(() => {
-        const link = document.createElement('a');
-        link.href = item.blobUrl;
-        link.download = item.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        try {
+          const link = document.createElement('a');
+          link.style.display = 'none';
+          link.href = item.blobUrl;
+          link.download = item.name;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            if (document.body.contains(link)) document.body.removeChild(link);
+          }, 500);
+        } catch (e) {
+          window.open(item.blobUrl, '_blank');
+        }
       }, index * 300);
     });
   };
@@ -85,12 +92,19 @@ export default function ReceivedFiles({ lang, receivedFiles, transferState, onCl
     }
 
     // Direct Download for Android & Desktop PC
-    const link = document.createElement('a');
-    link.href = item.blobUrl;
-    link.download = item.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = item.blobUrl;
+      a.download = item.name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 500);
+    } catch (e) {
+      window.open(item.blobUrl, '_blank');
+    }
   };
 
   // Auto-scroll and trigger batch download ONCE on PC when files arrive

@@ -7,7 +7,7 @@ const SLOT_PREFIX = 'airdrop-p2p-v5-';
 
 /**
  * Clean Single-Responsibility WebRTC Peer-to-Peer Transfer Engine
- * Enhanced with Global Multi-Region STUN & Backpressure Buffer Flow Control
+ * Enhanced with Global Multi-Region STUN, Backpressure Buffer Flow Control, and Connection Disconnect Recovery
  */
 class PeerNetworkService {
   constructor() {
@@ -35,12 +35,13 @@ class PeerNetworkService {
     this.onIncomingPrompt = null;
     this.onRejected = null;
     this.onCancelled = null;
+    this.onTransferAborted = null;
 
     this.probeTimer = null;
     this.isDestroyed = false;
   }
 
-  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected, onCancelled) {
+  init(onStatusChange, onDevicesUpdate, onProgress, onFileReceived, onIncomingPrompt, onRejected, onCancelled, onTransferAborted) {
     this.onStatusChange = onStatusChange;
     this.onDevicesUpdate = onDevicesUpdate;
     this.onProgress = onProgress;
@@ -48,6 +49,7 @@ class PeerNetworkService {
     this.onIncomingPrompt = onIncomingPrompt;
     this.onRejected = onRejected;
     this.onCancelled = onCancelled;
+    this.onTransferAborted = onTransferAborted;
     this.isDestroyed = false;
 
     this.tryClaimSlot(1);
@@ -187,10 +189,18 @@ class PeerNetworkService {
   }
 
   cleanupPeerSession(peerId) {
+    const hadActiveSender = this.senderSessions.has(peerId);
+    const hadActiveReceiver = this.receiverSessions.has(peerId);
+
     this.connections.delete(peerId);
     this.onlineDevices.delete(peerId);
     this.senderSessions.delete(peerId);
     this.receiverSessions.delete(peerId);
+
+    if ((hadActiveSender || hadActiveReceiver) && this.onTransferAborted) {
+      this.onTransferAborted(peerId);
+    }
+
     this.notifyDevicesUpdate();
   }
 

@@ -83,6 +83,13 @@ export default function App() {
         setIncomingPrompt(null);
         setAlertMsg('A küldő visszavonta az átvitelt.');
         setTimeout(() => setAlertMsg(null), 3000);
+      },
+      (abortedPeerId) => {
+        // Clear stuck progress bar immediately when sender refreshes/disconnects mid-stream!
+        setTransferState(null);
+        setPendingSendPeers(new Set());
+        setAlertMsg('A kapcsolat megszakadt (a másik fél kilépett vagy frissített).');
+        setTimeout(() => setAlertMsg(null), 4000);
       }
     );
 
