@@ -12,23 +12,47 @@ import { platform } from './platform';
 import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
-// ── Dupla Blip értesítő hang – Web Audio API (nincs külső fájl) ──────────
+// ── Globális AudioContext és Dupla Blip értesítő hang ────────────────────
+let sharedAudioCtx = null;
+
+function getAudioContext() {
+  if (!sharedAudioCtx) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      sharedAudioCtx = new AudioCtx();
+    }
+  }
+  if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+}
+
 function playDoubleBlip() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    [0, 0.18].forEach((offset, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(i === 0 ? 880 : 1100, ctx.currentTime + offset);
-      gain.gain.setValueAtTime(0.35, ctx.currentTime + offset);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.13);
-      osc.start(ctx.currentTime + offset);
-      osc.stop(ctx.currentTime + offset + 0.13);
-    });
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const play = () => {
+      [0, 0.18].forEach((offset, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(i === 0 ? 880 : 1100, ctx.currentTime + offset);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.13);
+        osc.start(ctx.currentTime + offset);
+        osc.stop(ctx.currentTime + offset + 0.13);
+      });
+    };
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => play()).catch(() => {});
+    } else {
+      play();
+    }
   } catch (e) {
     // Hang nem elérhető – csendben figyelmen kívül hagyjuk
   }
@@ -61,19 +85,14 @@ export default function App() {
   // Pre-unlock AudioContext on first user interaction anywhere on the page
   useEffect(() => {
     const unlockAudio = () => {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx.state === 'suspended') {
-          ctx.resume();
-        }
-      } catch (_) {}
+      getAudioContext();
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('click', unlockAudio);
     };
-    window.addEventListener('pointerdown', unlockAudio, { once: true });
-    window.addEventListener('touchstart', unlockAudio, { once: true });
-    window.addEventListener('click', unlockAudio, { once: true });
+    window.addEventListener('pointerdown', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+    window.addEventListener('click', unlockAudio);
     return () => {
       window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
