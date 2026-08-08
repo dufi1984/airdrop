@@ -174,30 +174,40 @@ export default function App() {
     };
   }, []);
 
-  // Force cache-busting reload button action
-  const handleForceAppReload = () => {
-    if (isRefreshing) {
-      setIsRefreshing(false);
-      window.location.reload(true);
-      return;
-    }
-
+  // Force cache-busting hard page reload
+  const handleForceAppReload = async () => {
     if (filesToSend.length > 0) {
-      const confirmReload = window.confirm('A kijelölt fájlok törlődnek.');
+      const confirmReload = window.confirm('A kijelölt fájlok törlődnek. Biztosan frissíted?');
       if (!confirmReload) return;
     }
 
     setIsRefreshing(true);
-    
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        names.forEach((name) => caches.delete(name));
-      });
+
+    try {
+      // 1. Unregister any active Service Workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      // 2. Clear all cache storage
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map((name) => caches.delete(name)));
+      }
+    } catch (e) {
+      console.warn('Cache clear error:', e);
     }
 
+    // 3. Hard navigate with cache-busting query parameter
+    const cleanUrl = window.location.origin + window.location.pathname + '?r=' + Date.now();
+    window.location.replace(cleanUrl);
+
+    // 4. Safety reset after 2.5s if browser delays navigation
     setTimeout(() => {
-      window.location.reload(true);
-    }, 200);
+      setIsRefreshing(false);
+    }, 2500);
   };
 
   const handleAcceptIncoming = () => {
