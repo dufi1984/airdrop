@@ -58,6 +58,29 @@ export default function App() {
     window.__airdrop_has_received_files = receivedFiles.length > 0;
   }, [filesToSend, receivedFiles]);
 
+  // Pre-unlock AudioContext on first user interaction anywhere on the page
+  useEffect(() => {
+    const unlockAudio = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+      } catch (_) {}
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('click', unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('click', unlockAudio);
+    };
+  }, []);
+
   // Initialize clean network service with predictable event handlers
   useEffect(() => {
     peerNetworkService.init(
