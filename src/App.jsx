@@ -12,6 +12,28 @@ import { platform } from './platform';
 import { Heart } from 'lucide-react';
 import { translations } from './i18n/translations';
 
+// ── Dupla Blip értesítő hang – Web Audio API (nincs külső fájl) ──────────
+function playDoubleBlip() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    [0, 0.18].forEach((offset, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(i === 0 ? 880 : 1100, ctx.currentTime + offset);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.13);
+      osc.start(ctx.currentTime + offset);
+      osc.stop(ctx.currentTime + offset + 0.13);
+    });
+  } catch (e) {
+    // Hang nem elérhető – csendben figyelmen kívül hagyjuk
+  }
+}
+
 export default function App() {
   const [lang] = useState('hu');
   const [isConnected, setIsConnected] = useState(false);
@@ -79,6 +101,7 @@ export default function App() {
       (promptInfo) => {
         setShowQrModal(false);
         setIncomingPrompt(promptInfo);
+        playDoubleBlip();
       },
       (rejectedPeerId) => {
         setTransferState(null);
