@@ -51,6 +51,9 @@ export default function Header({ isConnected, onOpenQr, onForceReload, isRefresh
         </div>
 
       </div>
+
+      {/* Ant Design Animated Glow Beam on bottom border */}
+      <div className="ant-header-beam" />
     </header>
   );
 }
