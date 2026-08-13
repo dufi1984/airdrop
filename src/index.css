@@ -112,10 +112,10 @@
   color: #ff7875;
 }
 
-/* Ant Design Animated Header Border Beam (5s cycle) */
+/* Ant Design Animated Header Border Beam (5s cycle - Right to Left) */
 @keyframes headerGlowBeam {
   0% {
-    transform: translateX(-100%);
+    transform: translateX(350%);
     opacity: 0;
   }
   15% {
@@ -125,7 +125,7 @@
     opacity: 1;
   }
   100% {
-    transform: translateX(350%);
+    transform: translateX(-100%);
     opacity: 0;
   }
 }

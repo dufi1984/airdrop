@@ -560,17 +560,29 @@ class PeerNetworkService {
     let sent = false;
 
     if (conn?.open) {
-      try { conn.send(payload); sent = true; } catch (_) { this.connections.delete(targetPeerId); }
+      try {
+        conn.send(payload);
+        sent = true;
+      } catch (_) {
+        this.connections.delete(targetPeerId);
+      }
     }
 
     if (!sent) {
       this.connectToSlot(targetPeerId);
-      for (let i = 0; i < 25; i++) {
-        await new Promise(r => setTimeout(r, 100));
-        conn = this.connections.get(targetPeerId);
-        if (conn?.open) {
-          try { conn.send(payload); sent = true; break; } catch (_) {}
-        }
+    }
+
+    // Ensure the proposal reaches an open connection even if the socket just refreshed
+    for (let i = 0; i < 25; i++) {
+      const session = this.senderSessions.get(targetPeerId);
+      if (!session || session.status === 'STREAMING' || session.abortController.aborted) break;
+      await new Promise(r => setTimeout(r, 150));
+      conn = this.connections.get(targetPeerId);
+      if (conn?.open && (!sent || i === 2)) {
+        try {
+          conn.send(payload);
+          sent = true;
+        } catch (_) {}
       }
     }
   }
