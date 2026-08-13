@@ -545,7 +545,8 @@ class PeerNetworkService {
   async sendFilesToPeer(targetPeerId, fileList) {
     if (!fileList || fileList.length === 0) return;
 
-    this.senderSessions.set(targetPeerId, makeSenderSession(fileList));
+    const session = makeSenderSession(fileList);
+    this.senderSessions.set(targetPeerId, session);
 
     const payload = JSON.stringify({
       type:        'propose_transfer',
@@ -557,31 +558,27 @@ class PeerNetworkService {
     });
 
     let conn = this.connections.get(targetPeerId);
-    let sent = false;
 
     if (conn?.open) {
       try {
         conn.send(payload);
-        sent = true;
+        return; // Sent once, exit immediately to prevent duplicate proposals!
       } catch (_) {
         this.connections.delete(targetPeerId);
       }
     }
 
-    if (!sent) {
-      this.connectToSlot(targetPeerId);
-    }
-
-    // Ensure the proposal reaches an open connection even if the socket just refreshed
-    for (let i = 0; i < 25; i++) {
-      const session = this.senderSessions.get(targetPeerId);
-      if (!session || session.status === 'STREAMING' || session.abortController.aborted) break;
-      await new Promise(r => setTimeout(r, 150));
+    // If socket not ready yet, connect and wait until open
+    this.connectToSlot(targetPeerId);
+    for (let i = 0; i < 30; i++) {
+      const curSession = this.senderSessions.get(targetPeerId);
+      if (!curSession || curSession.abortController.aborted) return; // Cancelled by user!
+      await new Promise(r => setTimeout(r, 100));
       conn = this.connections.get(targetPeerId);
-      if (conn?.open && (!sent || i === 2)) {
+      if (conn?.open) {
         try {
           conn.send(payload);
-          sent = true;
+          return; // Sent once, exit loop immediately!
         } catch (_) {}
       }
     }
