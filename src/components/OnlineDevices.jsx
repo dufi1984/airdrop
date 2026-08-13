@@ -22,15 +22,15 @@ export default function OnlineDevices({
   const getDeviceIcon = (deviceType) => {
     const typeStr = String(deviceType || '');
     if (/iPhone|Android telefon|Mobile/i.test(typeStr)) {
-      return <Smartphone className="w-4.5 h-4.5 text-white/90" />;
+      return <Smartphone className="w-4 h-4 text-white/80" />;
     }
     if (/iPad|Tablet/i.test(typeStr)) {
-      return <Tablet className="w-4.5 h-4.5 text-white/90" />;
+      return <Tablet className="w-4 h-4 text-white/80" />;
     }
     if (/Mac|Windows|Linux|PC|Monitor/i.test(typeStr)) {
-      return <Monitor className="w-4.5 h-4.5 text-white/90" />;
+      return <Monitor className="w-4 h-4 text-white/80" />;
     }
-    return <Smartphone className="w-4.5 h-4.5 text-white/90" />;
+    return <Smartphone className="w-4 h-4 text-white/80" />;
   };
 
   const otherPeers = (peerList || []).filter((p) => !p.isSelf);
@@ -38,11 +38,11 @@ export default function OnlineDevices({
   const myDeviceName = myDevice?.deviceType || myDevice?.deviceInfo || myDevice?.name || detectDeviceName();
 
   return (
-    <div className="w-full bg-[#1f1f1f] rounded-2xl p-4 flex flex-col gap-3.5 border border-[#303030] shadow-xl">
+    <div className="w-full bg-[#111111] rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-white/[0.08] shadow-2xl">
       
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-white/90 tracking-tight">
+        <h2 className="text-sm sm:text-base font-semibold text-white/90 tracking-tight">
           {t.onlineDevicesTitle}
         </h2>
 
@@ -51,34 +51,34 @@ export default function OnlineDevices({
           <button
             onClick={onSendToAll}
             disabled={!hasFilesSelected}
-            className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`py-1 px-2.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
               hasFilesSelected
-                ? 'bg-[#1677ff] hover:bg-[#4096ff] active:bg-[#0958d9] text-white shadow-sm cursor-pointer active:scale-95'
-                : 'bg-[#262626] text-white/25 border border-[#303030] cursor-not-allowed opacity-60'
+                ? 'ant-btn-primary cursor-pointer active:scale-95'
+                : 'bg-white/[0.04] text-white/25 border border-white/[0.08] cursor-not-allowed opacity-60'
             }`}
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3 h-3" />
             <span>{t.sendToAllDevices}</span>
           </button>
         )}
       </div>
 
       {/* Vertical Stack of Uniform Device Cards */}
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2">
         
         {/* 1. Self Device Card */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#141414] border border-[#303030] shadow-sm">
-          <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-9 h-9 rounded-xl bg-[#1f1f1f] border border-[#303030] flex items-center justify-center shrink-0">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-[#171717] border border-white/[0.08] shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-lg bg-[#111111] border border-white/[0.08] flex items-center justify-center shrink-0">
               {getDeviceIcon(myDeviceName)}
             </div>
-            <span className="text-sm font-semibold text-white/90 truncate tracking-wide">
+            <span className="text-xs sm:text-sm font-medium text-white/90 truncate">
               {myDeviceName}
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <span className="px-2.5 py-1 rounded-lg bg-[#52c41a]/10 text-[#52c41a] border border-[#52c41a]/30 text-xs font-medium flex items-center gap-1.5">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="px-2 py-0.5 rounded bg-[#132a13] text-[#52c41a] border border-[#235323] text-[11px] font-medium flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#52c41a]" />
               Ez az eszköz
             </span>
@@ -93,41 +93,41 @@ export default function OnlineDevices({
           return (
             <div
               key={peer.id}
-              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all shadow-sm ${
+              className={`flex items-center justify-between p-3 rounded-xl border transition-all shadow-sm ${
                 isPending
-                  ? 'bg-[#1677ff]/10 border-[#1677ff]/40'
-                  : 'bg-[#141414] border-[#303030] hover:border-[#424242]'
+                  ? 'bg-[#112544]/60 border-[#163c70]'
+                  : 'bg-[#171717] border-white/[0.08] hover:border-white/[0.15]'
               }`}
             >
-              <div className="flex items-center gap-3 min-w-0 pr-2">
-                <div className="w-9 h-9 rounded-xl bg-[#1f1f1f] border border-[#303030] flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-lg bg-[#111111] border border-white/[0.08] flex items-center justify-center shrink-0">
                   {getDeviceIcon(peerDeviceName)}
                 </div>
-                <span className="text-sm font-semibold text-white/90 truncate tracking-wide">
+                <span className="text-xs sm:text-sm font-medium text-white/90 truncate">
                   {peerDeviceName}
                 </span>
               </div>
 
               {/* Right Side: Action Button */}
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 {isPending ? (
                   <button
                     onClick={() => onCancelSendToPeer(peer.id)}
-                    className="py-1.5 px-3 rounded-lg bg-[#ff4d4f]/10 hover:bg-[#ff4d4f]/20 text-[#ff4d4f] border border-[#ff4d4f]/30 text-xs font-medium transition-all cursor-pointer"
+                    className="ant-btn-danger py-1 px-2.5 rounded-md text-xs font-medium cursor-pointer"
                   >
-                    Küldés visszavonása
+                    Visszavonás
                   </button>
                 ) : (
                   <button
                     onClick={() => onSendToPeer(peer.id)}
                     disabled={!hasFilesSelected}
-                    className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    className={`py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
                       hasFilesSelected
-                        ? 'bg-[#1677ff] hover:bg-[#4096ff] active:bg-[#0958d9] text-white shadow-sm cursor-pointer active:scale-95'
-                        : 'bg-[#262626] text-white/25 border border-[#303030] cursor-not-allowed opacity-60'
+                        ? 'ant-btn-primary cursor-pointer active:scale-95'
+                        : 'bg-white/[0.04] text-white/25 border border-white/[0.08] cursor-not-allowed opacity-60'
                     }`}
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-3 h-3" />
                     <span>Küldés</span>
                   </button>
                 )}

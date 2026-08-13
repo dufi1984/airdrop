@@ -268,7 +268,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-[#1677ff] selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative bg-[#141414]">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-[#1677ff] selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative bg-[#050505]">
       
       {/* Header Bar */}
       <Header
@@ -280,14 +280,14 @@ export default function App() {
 
       {/* Ant Design Floating Toast Notification Banner */}
       {alertMsg && (
-        <div className="fixed top-16 inset-x-0 mx-auto w-max z-[9990] max-w-[90vw] px-4 py-2.5 rounded-xl bg-[#1f1f1f] border border-[#303030] text-white/90 text-xs sm:text-sm font-semibold text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#1677ff]" />
+        <div className="fixed top-16 inset-x-0 mx-auto w-max z-[9990] max-w-[90vw] px-3.5 py-2 rounded-lg bg-[#141414] border border-white/[0.12] text-white/90 text-xs font-medium text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#1677ff]" />
           <span>{alertMsg}</span>
         </div>
       )}
 
       {/* Main Container with Responsive Ordering */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
 
         {/* 1. File Selector Component */}
         <FilePicker
@@ -325,9 +325,9 @@ export default function App() {
       </main>
 
       {/* Footer with Subtle Heart Icon */}
-      <footer className="w-full border-t border-[#303030] py-4 text-center text-xs text-white/45 flex items-center justify-center gap-1.5 font-medium">
+      <footer className="w-full border-t border-white/[0.08] py-3.5 text-center text-xs text-white/35 flex items-center justify-center gap-1.5 font-normal">
         <span>Airdrop by Dufi</span>
-        <Heart className="w-3.5 h-3.5 text-[#ff4d4f] fill-[#ff4d4f]/80" />
+        <Heart className="w-3 h-3 text-[#ff4d4f] fill-[#ff4d4f]/60" />
       </footer>
 
       {/* Incoming Prompt Modal Prompt */}
