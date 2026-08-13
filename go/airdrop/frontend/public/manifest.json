@@ -1,0 +1,26 @@
+{
+  "short_name": "Airdrop by Dufi",
+  "name": "Airdrop by Dufi",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "./icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "./icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#121214",
+  "theme_color": "#121214",
+  "display": "standalone",
+  "orientation": "portrait"
+}
