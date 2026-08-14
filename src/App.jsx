@@ -324,8 +324,9 @@ export default function App() {
 
       </main>
 
-      {/* Footer with Subtle Heart Icon */}
-      <footer className="w-full border-t border-white/[0.08] py-3.5 text-center text-xs text-white/35 flex items-center justify-center gap-1.5 font-normal">
+      {/* Footer with Subtle Heart Icon and Ant Design Glow Beam */}
+      <footer className="w-full border-t border-white/[0.08] py-3.5 text-center text-xs text-white/35 flex items-center justify-center gap-1.5 font-normal relative overflow-hidden">
+        <div className="ant-footer-beam" />
         <span>Airdrop by Dufi</span>
         <Heart className="w-3 h-3 text-[#ff4d4f] fill-[#ff4d4f]/60" />
       </footer>
