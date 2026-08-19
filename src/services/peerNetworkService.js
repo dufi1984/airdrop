@@ -290,7 +290,7 @@ class PeerNetworkService {
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => this.probeOtherSlots(), 3500);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 2500);
   }
 
   probeOtherSlots() {
@@ -299,13 +299,6 @@ class PeerNetworkService {
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (i === this.mySlotIndex) continue;
       const targetId = `${this.getSlotPrefix()}${i}`;
-      
-      // Deterministic rule to eliminate WebRTC glare:
-      // If we know both IDs, only the alphabetically smaller ID initiates the connection
-      if (this.myId && this.myId > targetId) {
-        // Wait for the other peer to connect to us
-        continue;
-      }
 
       const existing = this.connections.get(targetId);
       if (!existing || !existing.open) {
@@ -964,6 +957,10 @@ class PeerNetworkService {
         try { this.peer.reconnect(); } catch (_) {}
       }
       this.probeOtherSlots();
+    });
+
+    window.addEventListener('hashchange', () => {
+      this.checkDirectUrlConnect();
     });
   }
 
