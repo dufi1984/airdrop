@@ -174,7 +174,15 @@ export default function App() {
     };
   }, []);
 
+  // Clean URL address bar on mount so it always displays clean /airdrop/ without query params
+  useEffect(() => {
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
+  }, []);
+
   // Force cache-busting hard page reload
+
   const handleForceAppReload = async () => {
     if (filesToSend.length > 0) {
       const confirmReload = window.confirm('A kijelölt fájlok törlődnek. Biztosan frissíted?');
