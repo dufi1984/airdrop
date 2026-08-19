@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2, QrCode, RotateCw } from 'lucide-react';
 
-export default function Header({ isConnected, onOpenQr, onForceReload, isRefreshing }) {
+export default function Header({ isConnected, onOpenQr, onForceReload, onOpenLogs, isRefreshing }) {
   return (
     <header className="w-full border-b border-white/[0.08] bg-[#050505]/90 backdrop-blur-md sticky top-0 z-40 pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
       <div className="max-w-4xl mx-auto px-4 py-3 sm:px-6 flex items-center justify-between">
@@ -12,13 +12,16 @@ export default function Header({ isConnected, onOpenQr, onForceReload, isRefresh
         {/* Right Side Action Controls: Ant Design Status Badge -> QR -> Refresh */}
         <div className="flex items-center gap-2.5">
           
-          {/* Ant Design Tag (as seen in screenshot) */}
-          <div
-            className={`px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1.5 transition-all ${
+          {/* Ant Design Tag: Clickable to view Diagnostic Logs */}
+          <button
+            type="button"
+            onClick={onOpenLogs}
+            className={`px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer select-none active:scale-95 ${
               isConnected
-                ? 'bg-[#132a13] border border-[#235323] text-[#52c41a]'
-                : 'bg-[#2b2111] border border-[#594214] text-[#faad14]'
+                ? 'bg-[#132a13] hover:bg-[#1b3d1b] border border-[#235323] text-[#52c41a]'
+                : 'bg-[#2b2111] hover:bg-[#3d2e18] border border-[#594214] text-[#faad14]'
             }`}
+            title="Kattints a diagnosztikai napló megnyitásához"
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -28,7 +31,7 @@ export default function Header({ isConnected, onOpenQr, onForceReload, isRefresh
             <span className="hidden xs:inline text-[11px] font-medium">
               {isConnected ? 'Online' : 'Csatlakozás...'}
             </span>
-          </div>
+          </button>
 
           {/* QR Code Float Button (matching FloatButton circular style in screenshot) */}
           <button
