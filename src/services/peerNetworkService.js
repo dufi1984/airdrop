@@ -187,6 +187,8 @@ class PeerNetworkService {
         if (this.onStatusChange) this.onStatusChange(true);
         this.peer.on('connection', (conn) => this.setupConnectionEvents(conn));
         this.startProbing();
+        this.startHeartbeats();
+        this.setupLifecycleListeners();
       });
 
       peer.on('error', (err) => {
@@ -201,12 +203,53 @@ class PeerNetworkService {
       peer.on('disconnected', () => {
         if (this.onStatusChange) this.onStatusChange(false);
         if (this.peer && !this.peer.destroyed) {
-          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1500);
+          try { this.peer.reconnect(); } catch (_) {}
+          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1000);
         }
       });
     } catch (e) {
       console.error('[Peer] Init exception:', e);
     }
+  }
+
+  // ─────────────────────────────────────────
+  // Heartbeats & Lifecycle Listeners
+  // ─────────────────────────────────────────
+  startHeartbeats() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(() => {
+      if (this.isDestroyed) return;
+      if (this.peer?.disconnected && !this.peer?.destroyed) {
+        try { this.peer.reconnect(); } catch (_) {}
+      }
+      this.connections.forEach((conn) => {
+        if (conn?.open) {
+          try { conn.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+        }
+      });
+    }, 3000);
+  }
+
+  setupLifecycleListeners() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (this._hasLifecycleListeners) return;
+    this._hasLifecycleListeners = true;
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (this.peer?.disconnected && !this.peer?.destroyed) {
+          try { this.peer.reconnect(); } catch (_) {}
+        }
+        this.probeOtherSlots();
+      }
+    });
+
+    window.addEventListener('online', () => {
+      if (this.peer?.disconnected && !this.peer?.destroyed) {
+        try { this.peer.reconnect(); } catch (_) {}
+      }
+      this.probeOtherSlots();
+    });
   }
 
   // ─────────────────────────────────────────
@@ -219,7 +262,10 @@ class PeerNetworkService {
   }
 
   probeOtherSlots() {
-    if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
+    if (!this.peer || this.peer.destroyed) return;
+    if (this.peer.disconnected) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (i === this.mySlotIndex) continue;
       const targetId = `${SLOT_PREFIX}${i}`;
@@ -230,7 +276,10 @@ class PeerNetworkService {
   }
 
   connectToSlot(targetSlotId) {
-    if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
+    if (!this.peer || this.peer.destroyed) return;
+    if (this.peer.disconnected) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
     try {
       const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
@@ -324,6 +373,14 @@ class PeerNetworkService {
     try { msg = JSON.parse(data); } catch { return; }
 
     switch (msg.type) {
+      case 'ping':
+        try {
+          const conn = this.connections.get(fromPeerId);
+          if (conn?.open) conn.send(JSON.stringify({ type: 'pong' }));
+        } catch (_) {}
+        return;
+      case 'pong':
+        return;
       case 'handshake':              return this.onHandshake(fromPeerId, msg);
       case 'propose_transfer':       return this.onProposeTransfer(fromPeerId, msg);
       case 'cancel_proposed_transfer': return this.onCancelProposedTransfer(fromPeerId);
