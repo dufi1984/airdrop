@@ -103,9 +103,10 @@ class PeerNetworkService {
     this.mySlotIndex    = null;  // 1-MAX_SLOTS, or 0 if we got a random extra ID
     this.myDeviceName   = detectDeviceName();
 
-    this.connections    = new Map();  // peerId → DataConnection
-    this.onlineDevices  = new Map();  // peerId → device info
-    this.senderSessions = new Map();
+    this.connections      = new Map();  // peerId → DataConnection (open)
+    this.pendingConnects  = new Set();  // peerId → connecting (in-progress, not yet open)
+    this.onlineDevices    = new Map();  // peerId → device info
+    this.senderSessions   = new Map();
     this.receiverSessions = new Map();
 
     this.onStatusChange    = null;
@@ -291,7 +292,8 @@ class PeerNetworkService {
       }
 
       const existing = this.connections.get(targetId);
-      if (!existing || !existing.open) {
+      const pending  = this.pendingConnects.has(targetId);
+      if ((!existing || !existing.open) && !pending) {
         this.connectToPeerId(targetId);
       }
     }
@@ -301,10 +303,13 @@ class PeerNetworkService {
   connectToPeerId(targetId) {
     if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
     if (!targetId || targetId === this.myId) return;
+    if (this.pendingConnects.has(targetId)) return;
 
     const existing = this.connections.get(targetId);
     if (existing && existing.open) return;
 
+    this.pendingConnects.add(targetId);
+    logger.info('PEER', `Kapcsolódás kezdeményezve: ${targetId}`);
     try {
       const conn = this.peer.connect(targetId, {
         metadata: {
@@ -316,6 +321,7 @@ class PeerNetworkService {
       });
       this.setupConnectionEvents(conn);
     } catch (e) {
+      this.pendingConnects.delete(targetId);
       logger.warn('PEER', `Kapcsolódási hiba (${targetId}): ${e.message}`);
     }
   }
@@ -373,6 +379,8 @@ class PeerNetworkService {
     }
 
     conn.on('open', () => {
+      this.pendingConnects.delete(conn.peer);
+
       const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       const peerFamily = conn.metadata?.deviceFamily || 'desktop';
 
@@ -405,13 +413,16 @@ class PeerNetworkService {
     conn.on('data',  (data) => this.handleIncomingData(conn.peer, data));
 
     conn.on('close', () => {
+      this.pendingConnects.delete(conn.peer);
       logger.info('PEER', `Kapcsolat lezárult: ${conn.peer}`);
       this.cleanupPeerSession(conn.peer, 'A kapcsolat lezárult.');
     });
 
     conn.on('error', (err) => {
+      this.pendingConnects.delete(conn.peer);
       logger.error('PEER', `Kapcsolat hiba: ${err.message || err}`);
       this.cleanupPeerSession(conn.peer, `Hiba: ${err.message || err}`);
+
     });
   }
 
