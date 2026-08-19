@@ -6,7 +6,6 @@ import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
 import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
-import LogModal from './components/LogModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
 import { platform } from './platform';
@@ -71,7 +70,6 @@ export default function App() {
   const [autoSavedFiles, setAutoSavedFiles] = useState(new Set()); // names of files already auto-downloaded
 
   const [showQrModal, setShowQrModal] = useState(false);
-  const [showLogModal, setShowLogModal] = useState(false);
   const [incomingPrompt, setIncomingPrompt] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -176,13 +174,6 @@ export default function App() {
     };
   }, []);
 
-  // Strip ?r= query param from URL on mount (leftover from cache-bust reload)
-  useEffect(() => {
-    if (window.location.search.includes('r=')) {
-      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
-    }
-  }, []);
-
   // Force cache-busting hard page reload
   const handleForceAppReload = async () => {
     if (filesToSend.length > 0) {
@@ -209,7 +200,7 @@ export default function App() {
       console.warn('Cache clear error:', e);
     }
 
-    // 3. Hard navigate with cache-busting query parameter (stripped on next load)
+    // 3. Hard navigate with cache-busting query parameter
     const cleanUrl = window.location.origin + window.location.pathname + '?r=' + Date.now();
     window.location.replace(cleanUrl);
 
@@ -218,7 +209,6 @@ export default function App() {
       setIsRefreshing(false);
     }, 2500);
   };
-
 
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
@@ -284,7 +274,6 @@ export default function App() {
       <Header
         isConnected={isConnected}
         onOpenQr={() => setShowQrModal(true)}
-        onOpenLogs={() => setShowLogModal(true)}
         onForceReload={handleForceAppReload}
         isRefreshing={isRefreshing}
       />
@@ -357,13 +346,6 @@ export default function App() {
         <QrModal
           lang={lang}
           onClose={() => setShowQrModal(false)}
-        />
-      )}
-
-      {/* Diagnostic System Log Modal */}
-      {showLogModal && (
-        <LogModal
-          onClose={() => setShowLogModal(false)}
         />
       )}
 
