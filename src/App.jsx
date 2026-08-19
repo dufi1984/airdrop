@@ -176,6 +176,13 @@ export default function App() {
     };
   }, []);
 
+  // Strip ?r= query param from URL on mount (leftover from cache-bust reload)
+  useEffect(() => {
+    if (window.location.search.includes('r=')) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
+  }, []);
+
   // Force cache-busting hard page reload
   const handleForceAppReload = async () => {
     if (filesToSend.length > 0) {
@@ -202,7 +209,7 @@ export default function App() {
       console.warn('Cache clear error:', e);
     }
 
-    // 3. Hard navigate with cache-busting query parameter
+    // 3. Hard navigate with cache-busting query parameter (stripped on next load)
     const cleanUrl = window.location.origin + window.location.pathname + '?r=' + Date.now();
     window.location.replace(cleanUrl);
 
@@ -211,6 +218,7 @@ export default function App() {
       setIsRefreshing(false);
     }, 2500);
   };
+
 
   const handleAcceptIncoming = () => {
     if (incomingPrompt) {
