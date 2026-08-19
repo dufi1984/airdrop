@@ -4,16 +4,17 @@ import { platform } from '../platform';
 import { logger } from '../utils/logger';
 
 // ─────────────────────────────────────────────
-// Transfer Constants & WebRTC / TURN Config
+// Transfer Constants
 // ─────────────────────────────────────────────
 const HIGH_WATERMARK    = 256 * 1024;
-const LOW_WATERMARK     = 32 * 1024;
+const LOW_WATERMARK     = 32  * 1024;
 const CHUNK_WATCHDOG_MS = 45_000;
 const HEARTBEAT_MS      = 5_000;
+const MAX_SLOTS         = 10;
+const PROBE_INTERVAL_MS = 2500;
 
 /**
  * STUN + TURN relay servers for full NAT traversal (4G/5G CGNAT, Symmetric NAT).
- * openrelay.metered.ca provides free public TURN relay.
  */
 const RTC_CONFIG = {
   iceServers: [
@@ -28,20 +29,28 @@ const RTC_CONFIG = {
         'turn:openrelay.metered.ca:443?transport=tcp',
         'turns:openrelay.metered.ca:443?transport=tcp',
       ],
-      username: 'openrelay',
+      username:   'openrelay',
       credential: 'openrelay',
     },
   ],
   iceCandidatePoolSize: 4,
 };
 
-/**
- * Generate a unique random peer ID prefix so we never collide with other users.
- * Format: airdrop-v7-<8 random chars>
- */
-function generateMyPeerId() {
-  const random = Math.random().toString(36).substring(2, 10);
-  return `airdrop-v7-${random}`;
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+function resolveRoomId() {
+  try {
+    const hash  = window.location.hash;
+    const match = hash.match(/[#&]room=([^&]+)/);
+    return match ? decodeURIComponent(match[1]) : 'lobby';
+  } catch (_) {
+    return 'lobby';
+  }
+}
+
+function getSlotPrefix(roomId) {
+  return `airdrop-v7-${roomId}-`;
 }
 
 function getChunkSizeFor(receiverFamily) {
@@ -50,9 +59,9 @@ function getChunkSizeFor(receiverFamily) {
 
 function readSlice(file, offset, size) {
   return new Promise((resolve, reject) => {
-    const slice = file.slice(offset, offset + size);
+    const slice  = file.slice(offset, offset + size);
     const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result);
+    reader.onload  = (e) => resolve(e.target.result);
     reader.onerror = () => reject(new Error('FileReader error'));
     reader.readAsArrayBuffer(slice);
   });
@@ -64,24 +73,16 @@ function getRawDataChannel(conn) {
 
 function waitForDrain(dc, abortController) {
   return new Promise((resolve, reject) => {
-    if (abortController.aborted) { reject(new Error('aborted')); return; }
-    if (dc.bufferedAmount <= LOW_WATERMARK) { resolve(); return; }
+    if (abortController.aborted)               { reject(new Error('aborted')); return; }
+    if (dc.bufferedAmount <= LOW_WATERMARK)    { resolve(); return; }
 
-    const onLow = () => {
-      dc.removeEventListener('bufferedamountlow', onLow);
-      resolve();
-    };
+    const onLow = () => { dc.removeEventListener('bufferedamountlow', onLow); resolve(); };
     dc.addEventListener('bufferedamountlow', onLow);
 
-    const fallback = setTimeout(() => {
-      dc.removeEventListener('bufferedamountlow', onLow);
-      resolve();
-    }, 500);
-
-    const abortCheck = setInterval(() => {
+    const fallback    = setTimeout(() => { dc.removeEventListener('bufferedamountlow', onLow); resolve(); }, 500);
+    const abortCheck  = setInterval(() => {
       if (abortController.aborted) {
-        clearInterval(abortCheck);
-        clearTimeout(fallback);
+        clearInterval(abortCheck); clearTimeout(fallback);
         dc.removeEventListener('bufferedamountlow', onLow);
         reject(new Error('aborted'));
       }
@@ -90,18 +91,21 @@ function waitForDrain(dc, abortController) {
 }
 
 // ═════════════════════════════════════════════
-// PeerNetworkService – Direct QR Pairing Model
+// PeerNetworkService
 // ═════════════════════════════════════════════
 class PeerNetworkService {
   constructor() {
-    this.peer             = null;
-    this.myId             = null;
-    this.myPeerId         = generateMyPeerId(); // Our unique random ID
-    this.myDeviceName     = detectDeviceName();
+    this.roomId         = resolveRoomId();
+    this.slotPrefix     = getSlotPrefix(this.roomId);
 
-    this.connections      = new Map(); // peerId → PeerJS DataConnection
-    this.onlineDevices    = new Map(); // peerId → device info
-    this.senderSessions   = new Map();
+    this.peer           = null;
+    this.myId           = null;
+    this.mySlotIndex    = null;  // 1-MAX_SLOTS, or 0 if we got a random extra ID
+    this.myDeviceName   = detectDeviceName();
+
+    this.connections    = new Map();  // peerId → DataConnection
+    this.onlineDevices  = new Map();  // peerId → device info
+    this.senderSessions = new Map();
     this.receiverSessions = new Map();
 
     this.onStatusChange    = null;
@@ -113,9 +117,10 @@ class PeerNetworkService {
     this.onCancelled       = null;
     this.onTransferAborted = null;
 
-    this.heartbeatTimer   = null;
+    this.probeTimer      = null;
+    this.heartbeatTimer  = null;
     this.wakeLockSentinel = null;
-    this.isDestroyed      = false;
+    this.isDestroyed     = false;
 
     this.setupLifecycleListeners();
   }
@@ -135,116 +140,171 @@ class PeerNetworkService {
     this.onTransferAborted = onTransferAborted;
     this.isDestroyed       = false;
 
-    logger.info('SYSTEM', `Airdrop indul. Saját ID: ${this.myPeerId}, Eszköz: ${this.myDeviceName}`);
+    logger.info('SYSTEM', `Eszköz: ${this.myDeviceName} | Szoba: ${this.roomId}`);
     this.connect();
     this.startHeartbeats();
   }
 
   // ─────────────────────────────────────────
-  // PeerJS Connection with Random Unique ID
+  // Slot Allocation → PeerJS Registration
   // ─────────────────────────────────────────
   connect() {
     if (this.isDestroyed) return;
-    logger.info('PEER', `PeerJS regisztráció: ${this.myPeerId}`);
+    this.tryClaimSlot(1);
+  }
 
-    try {
-      const peer = new Peer(this.myPeerId, {
-        host: '0.peerjs.com',
-        port: 443,
-        path: '/',
-        secure: true,
-        debug: 0,
-        config: RTC_CONFIG,
-      });
-
-      peer.on('open', (id) => {
-        if (this.isDestroyed) { peer.destroy(); return; }
-        this.peer = peer;
-        this.myId = id;
-        logger.success('PEER', `Online! Saját Peer ID: ${id}`);
-        if (this.onStatusChange) this.onStatusChange(true);
-
-        this.peer.on('connection', (conn) => {
-          logger.info('PEER', `Bejövő kapcsolat: ${conn.peer}`);
-          this.setupConnectionEvents(conn);
-        });
-
-        // Check if URL contains a direct connect target (from QR scan)
-        this.checkUrlForDirectConnect();
-        this.notifyDevicesUpdate();
-      });
-
-      peer.on('error', (err) => {
-        logger.warn('PEER', `PeerJS hiba (${err.type}): ${err.message}`);
-        if (err.type === 'unavailable-id') {
-          // ID collision – generate a new one and retry
-          peer.destroy();
-          this.myPeerId = generateMyPeerId();
-          logger.info('PEER', `ID ütközés, új ID generálva: ${this.myPeerId}`);
-          setTimeout(() => this.connect(), 500);
-        } else if (err.type === 'peer-unavailable') {
-          // Expected: target peer is not online yet
-        } else if (err.type === 'network' || err.type === 'server-error') {
-          logger.warn('PEER', `Hálózati hiba – újracsatlakozás 3 mp múlva...`);
-          setTimeout(() => this.connect(), 3000);
-        } else {
-          logger.error('PEER', `Kritikus hiba [${err.type}]: ${err.message}`);
-        }
-      });
-
-      peer.on('disconnected', () => {
-        logger.warn('PEER', 'Kapcsolat megszakadt a PeerJS felhővel – újracsatlakozás...');
-        if (this.onStatusChange) this.onStatusChange(false);
-        if (!this.isDestroyed && this.peer && !this.peer.destroyed) {
-          setTimeout(() => {
-            try { this.peer.reconnect(); } catch (_) {
-              // If reconnect fails, full reconnect
-              this.connect();
-            }
-          }, 2000);
-        }
-      });
-
-      peer.on('close', () => {
-        logger.warn('PEER', 'PeerJS kapcsolat lezárult.');
-        if (this.onStatusChange) this.onStatusChange(false);
-      });
-
-    } catch (e) {
-      logger.error('PEER', `Kivétel indításkor: ${e.message}`);
+  tryClaimSlot(slotIndex) {
+    if (this.isDestroyed) return;
+    if (slotIndex > MAX_SLOTS) {
+      // All slots taken → use random extra ID
+      const extra = `${this.slotPrefix}extra-${Math.random().toString(36).substring(2, 9)}`;
+      this.mySlotIndex = 0;
+      this.registerPeer(extra);
+      return;
     }
+
+    const slotId = `${this.slotPrefix}${slotIndex}`;
+    logger.info('PEER', `Slot foglalás kísérlet: ${slotId}`);
+
+    const peer = new Peer(slotId, {
+      host:   '0.peerjs.com',
+      port:   443,
+      path:   '/',
+      secure: true,
+      debug:  0,
+      config: RTC_CONFIG,
+    });
+
+    const cleanup = () => {
+      peer.removeAllListeners?.();
+      try { if (!peer.destroyed) peer.destroy(); } catch (_) {}
+    };
+
+    peer.on('open', (id) => {
+      if (this.isDestroyed) { cleanup(); return; }
+      this.mySlotIndex = slotIndex;
+      this.finalizeConnection(peer, id);
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'unavailable-id') {
+        logger.info('PEER', `Slot foglalt: ${slotId}, következő...`);
+        cleanup();
+        this.tryClaimSlot(slotIndex + 1);
+      } else if (err.type === 'network' || err.type === 'server-error') {
+        logger.warn('PEER', `Hálózati hiba (${err.type}) – újrapróbálás 3mp múlva...`);
+        cleanup();
+        setTimeout(() => this.tryClaimSlot(slotIndex), 3000);
+      } else if (err.type !== 'peer-unavailable') {
+        logger.error('PEER', `PeerJS hiba [${err.type}]: ${err.message}`);
+      }
+    });
+  }
+
+  registerPeer(peerId) {
+    if (this.isDestroyed) return;
+    logger.info('PEER', `Regisztráció extra ID-val: ${peerId}`);
+
+    const peer = new Peer(peerId, {
+      host:   '0.peerjs.com',
+      port:   443,
+      path:   '/',
+      secure: true,
+      debug:  0,
+      config: RTC_CONFIG,
+    });
+
+    peer.on('open', (id) => {
+      if (this.isDestroyed) { try { peer.destroy(); } catch (_) {} return; }
+      this.finalizeConnection(peer, id);
+    });
+
+    peer.on('error', (err) => {
+      if (err.type !== 'peer-unavailable') {
+        logger.warn('PEER', `Extra peer hiba [${err.type}]: ${err.message}`);
+      }
+    });
+  }
+
+  finalizeConnection(peer, id) {
+    this.peer = peer;
+    this.myId = id;
+    logger.success('PEER', `Online! ID: ${id} (slot: ${this.mySlotIndex || 'extra'})`);
+
+    if (this.onStatusChange) this.onStatusChange(true);
+
+    this.peer.on('connection', (conn) => {
+      logger.info('PEER', `Bejövő kapcsolat: ${conn.peer}`);
+      this.setupConnectionEvents(conn);
+    });
+
+    this.peer.on('disconnected', () => {
+      logger.warn('PEER', 'Kapcsolat megszakadt – újracsatlakozás...');
+      if (this.onStatusChange) this.onStatusChange(false);
+      if (!this.isDestroyed && !this.peer.destroyed) {
+        setTimeout(() => {
+          try { this.peer.reconnect(); } catch (_) {
+            this.tryClaimSlot(this.mySlotIndex || 1);
+          }
+        }, 2000);
+      }
+    });
+
+    this.peer.on('close', () => {
+      if (this.onStatusChange) this.onStatusChange(false);
+    });
+
+    this.peer.on('error', (err) => {
+      if (err.type !== 'peer-unavailable') {
+        logger.warn('PEER', `Peer hiba [${err.type}]: ${err.message}`);
+      }
+    });
+
+    // Check for QR/link direct connect
+    this.checkUrlForDirectConnect();
+    this.startProbing();
+    this.notifyDevicesUpdate();
   }
 
   // ─────────────────────────────────────────
-  // Direct Connect via URL (QR / Share Link)
+  // Device Discovery / Slot Probing
   // ─────────────────────────────────────────
-  checkUrlForDirectConnect() {
-    try {
-      const hash = window.location.hash;
-      if (!hash) return;
-      const match = hash.match(/connect=([a-zA-Z0-9_-]+)/);
-      if (match && match[1] && match[1] !== this.myId) {
-        const targetId = decodeURIComponent(match[1]);
-        logger.info('PEER', `QR párosítás célpont: ${targetId}`);
+  startProbing() {
+    this.probeOtherSlots();
+    if (this.probeTimer) clearInterval(this.probeTimer);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), PROBE_INTERVAL_MS);
+  }
+
+  probeOtherSlots() {
+    if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
+
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      if (i === this.mySlotIndex) continue;
+      const targetId = `${this.slotPrefix}${i}`;
+
+      // ─── Anti-glare rule ───
+      // Only the device with the LOWER slot index initiates.
+      // mySlotIndex = 0 means we have an extra-... ID → always initiate (0 < any positive slot).
+      // mySlotIndex > 0: skip if our slot number is GREATER than the target slot (they'll connect to us).
+      if (this.mySlotIndex > 0 && this.mySlotIndex > i) {
+        continue;
+      }
+
+      const existing = this.connections.get(targetId);
+      if (!existing || !existing.open) {
         this.connectToPeerId(targetId);
       }
-    } catch (_) {}
+    }
+    this.notifyDevicesUpdate();
   }
 
-  // ─────────────────────────────────────────
-  // Connect to a specific peer by ID
-  // ─────────────────────────────────────────
   connectToPeerId(targetId) {
     if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
     if (!targetId || targetId === this.myId) return;
 
     const existing = this.connections.get(targetId);
-    if (existing && existing.open) {
-      logger.info('PEER', `Már kapcsolódva van: ${targetId}`);
-      return;
-    }
+    if (existing && existing.open) return;
 
-    logger.info('PEER', `Kapcsolódás: ${targetId}`);
     try {
       const conn = this.peer.connect(targetId, {
         metadata: {
@@ -256,8 +316,29 @@ class PeerNetworkService {
       });
       this.setupConnectionEvents(conn);
     } catch (e) {
-      logger.error('PEER', `Kapcsolódási hiba (${targetId}): ${e.message}`);
+      logger.warn('PEER', `Kapcsolódási hiba (${targetId}): ${e.message}`);
     }
+  }
+
+  // ─────────────────────────────────────────
+  // Direct Connect via URL (QR / Share Link)
+  // ─────────────────────────────────────────
+  checkUrlForDirectConnect() {
+    try {
+      const hash  = window.location.hash;
+      const match = hash.match(/[#&]connect=([^&]+)/);
+      if (match && match[1] && match[1] !== this.myId) {
+        const targetId = decodeURIComponent(match[1]);
+        logger.info('PEER', `Közvetlen QR párosítás: ${targetId}`);
+        this.connectToPeerId(targetId);
+      }
+    } catch (_) {}
+  }
+
+  getShareUrl() {
+    if (typeof window === 'undefined' || !this.myId) return '';
+    const base = window.location.origin + window.location.pathname;
+    return `${base}#connect=${encodeURIComponent(this.myId)}`;
   }
 
   // ─────────────────────────────────────────
@@ -266,35 +347,29 @@ class PeerNetworkService {
   setupConnectionEvents(conn) {
     if (!conn) return;
 
-    // ICE monitoring
-    const attachPcListeners = () => {
+    const attachIceListeners = () => {
       const pc = conn.peerConnection;
       if (!pc) return;
       pc.oniceconnectionstatechange = () => {
         const state = pc.iceConnectionState;
-        logger.ice(`ICE állapot [${conn.peer.substring(0, 16)}...]: ${state}`);
+        logger.ice(`ICE [${conn.peer.substring(0, 20)}...]: ${state}`);
         if (state === 'failed') {
-          logger.error('ICE', `ICE kapcsolat meghiúsult – TURN szerver nem érhető el? (${conn.peer.substring(0, 16)}...)`);
+          logger.error('ICE', `ICE kapcsolat meghiúsult (${conn.peer.substring(0, 20)}...)`);
         }
-      };
-      pc.onicecandidateerror = (e) => {
-        logger.warn('ICE', `ICE jelölt hiba: ${e.errorText} (port: ${e.port})`);
       };
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          const type = event.candidate.type || 'unknown';
+          const type  = event.candidate.type     || 'unknown';
           const proto = event.candidate.protocol || 'udp';
           logger.ice(`Jelölt: [${type.toUpperCase()}/${proto.toUpperCase()}]`);
         }
       };
     };
 
-    // PeerJS may not have peerConnection immediately on outgoing calls
     if (conn.peerConnection) {
-      attachPcListeners();
+      attachIceListeners();
     } else {
-      // Wait a tick for PeerJS to set up the RTCPeerConnection
-      setTimeout(() => attachPcListeners(), 100);
+      setTimeout(() => attachIceListeners(), 150);
     }
 
     conn.on('open', () => {
@@ -303,8 +378,8 @@ class PeerNetworkService {
 
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
-        id: conn.peer,
-        name: peerName,
+        id:         conn.peer,
+        name:       peerName,
         deviceInfo: peerName,
         deviceType: peerName,
         deviceFamily: peerFamily,
@@ -327,10 +402,10 @@ class PeerNetworkService {
       this.notifyDevicesUpdate();
     });
 
-    conn.on('data', (data) => this.handleIncomingData(conn.peer, data));
+    conn.on('data',  (data) => this.handleIncomingData(conn.peer, data));
 
     conn.on('close', () => {
-      logger.info('PEER', `Kapcsolat lezárult: ${conn.peer.substring(0, 16)}...`);
+      logger.info('PEER', `Kapcsolat lezárult: ${conn.peer}`);
       this.cleanupPeerSession(conn.peer, 'A kapcsolat lezárult.');
     });
 
@@ -366,11 +441,11 @@ class PeerNetworkService {
 
   notifyDevicesUpdate() {
     const self = {
-      id: this.myId,
-      name: this.myDeviceName,
+      id:         this.myId,
+      name:       this.myDeviceName,
       deviceInfo: this.myDeviceName,
       deviceType: this.myDeviceName,
-      isSelf: true,
+      isSelf:     true,
     };
 
     const peers = Array.from(this.onlineDevices.values()).map((p) => ({
@@ -409,7 +484,6 @@ class PeerNetworkService {
       this.handleIncomingChunk(fromPeerId, data instanceof ArrayBuffer ? data : data.buffer);
       return;
     }
-
     if (typeof data !== 'string') return;
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
@@ -421,14 +495,14 @@ class PeerNetworkService {
           if (conn?.open) conn.send(JSON.stringify({ type: 'pong' }));
         } catch (_) {}
         return;
-      case 'pong': return;
-      case 'handshake':             return this.onHandshake(fromPeerId, msg);
-      case 'propose_transfer':      return this.onProposeTransfer(fromPeerId, msg);
-      case 'cancel_proposed_transfer': return this.onCancelProposedTransfer(fromPeerId);
-      case 'accept_transfer':       return this.onAcceptTransfer(fromPeerId);
-      case 'reject_transfer':       return this.onRejectTransfer(fromPeerId);
-      case 'header':                return this.onFileHeader(fromPeerId, msg);
-      case 'end':                   return this.onFileEnd(fromPeerId, msg);
+      case 'pong':                         return;
+      case 'handshake':                    return this.onHandshake(fromPeerId, msg);
+      case 'propose_transfer':             return this.onProposeTransfer(fromPeerId, msg);
+      case 'cancel_proposed_transfer':     return this.onCancelProposedTransfer(fromPeerId);
+      case 'accept_transfer':              return this.onAcceptTransfer(fromPeerId);
+      case 'reject_transfer':              return this.onRejectTransfer(fromPeerId);
+      case 'header':                       return this.onFileHeader(fromPeerId, msg);
+      case 'end':                          return this.onFileEnd(fromPeerId, msg);
       default:
         logger.warn('PEER', `Ismeretlen üzenet: ${msg.type}`);
     }
@@ -441,7 +515,8 @@ class PeerNetworkService {
     const peerName   = msg.deviceType || msg.deviceInfo || 'Eszköz';
     const peerFamily = msg.deviceFamily || 'desktop';
     this.onlineDevices.set(fromPeerId, {
-      id: fromPeerId, name: peerName, deviceInfo: peerName, deviceType: peerName, deviceFamily: peerFamily,
+      id: fromPeerId, name: peerName, deviceInfo: peerName,
+      deviceType: peerName, deviceFamily: peerFamily,
     });
     this.notifyDevicesUpdate();
   }
@@ -449,13 +524,12 @@ class PeerNetworkService {
   onProposeTransfer(fromPeerId, msg) {
     const senderName = msg.senderName || this.onlineDevices.get(fromPeerId)?.name || 'Eszköz';
     logger.info('TRANSFER', `Bejövő: ${msg.totalFiles} fájl (${senderName})`);
-
     const session = {
       transferId: msg.transferId || Date.now(),
       senderName,
       totalFiles: msg.totalFiles,
-      fileNames: msg.fileNames || [msg.fileName],
-      status: 'AWAITING_HEADER',
+      fileNames:  msg.fileNames || [msg.fileName],
+      status:     'AWAITING_HEADER',
       header: null, chunks: [], receivedBytes: 0, startTime: null, watchdogTimer: null,
     };
     this.receiverSessions.set(fromPeerId, session);
@@ -482,7 +556,7 @@ class PeerNetworkService {
     session.chunks = [];
     session.receivedBytes = 0;
     session.startTime = Date.now();
-    session.status = 'RECEIVING';
+    session.status    = 'RECEIVING';
     logger.info('TRANSFER', `Fogadás: ${msg.name} [${msg.currentIndex}/${msg.totalFiles}]`);
     this.acquireWakeLock();
     session.watchdogTimer = this.startReceiverWatchdog(fromPeerId);
@@ -492,14 +566,14 @@ class PeerNetworkService {
     const session = this.receiverSessions.get(fromPeerId);
     if (!session || !session.header || session.status !== 'RECEIVING') return;
     if (session.watchdogTimer) clearTimeout(session.watchdogTimer);
-    session.watchdogTimer = this.startReceiverWatchdog(fromPeerId);
+    session.watchdogTimer  = this.startReceiverWatchdog(fromPeerId);
     session.chunks.push(buffer);
     session.receivedBytes += buffer.byteLength;
-    const elapsed   = Math.max((Date.now() - session.startTime) / 1000, 0.001);
-    const speed     = session.receivedBytes / elapsed;
+    const elapsed  = Math.max((Date.now() - session.startTime) / 1000, 0.001);
+    const speed    = session.receivedBytes / elapsed;
     const remaining = Math.max(session.header.size - session.receivedBytes, 0);
-    const eta       = speed > 0 ? remaining / speed : 0;
-    const progress  = Math.min(100, Math.round((session.receivedBytes / session.header.size) * 100));
+    const eta      = speed > 0 ? remaining / speed : 0;
+    const progress = Math.min(100, Math.round((session.receivedBytes / session.header.size) * 100));
     if (this.onProgress) {
       this.onProgress({
         direction: 'receive', fileName: session.header.name, fileSize: session.header.size,
@@ -532,7 +606,7 @@ class PeerNetworkService {
         file, blobUrl, name: session.header.name, size: session.header.size,
         mimeType: session.header.mimeType,
         currentIndex: session.header.currentIndex || 1,
-        totalFiles: session.header.totalFiles || 1,
+        totalFiles:   session.header.totalFiles   || 1,
         fromPeerId,
       });
     }
@@ -541,8 +615,10 @@ class PeerNetworkService {
       this.receiverSessions.delete(fromPeerId);
       this.releaseWakeLock();
     } else {
-      session.status = 'AWAITING_HEADER';
-      session.header = null; session.chunks = []; session.receivedBytes = 0;
+      session.status    = 'AWAITING_HEADER';
+      session.header    = null;
+      session.chunks    = [];
+      session.receivedBytes = 0;
     }
   }
 
@@ -564,13 +640,13 @@ class PeerNetworkService {
   onAcceptTransfer(fromPeerId) {
     const session = this.senderSessions.get(fromPeerId);
     if (!session || session.isExecuting || session.status !== 'PROPOSED') return;
-    session.status = 'STREAMING';
-    logger.info('TRANSFER', `Elfogadva (${fromPeerId.substring(0, 16)}...)`);
+    session.status      = 'STREAMING';
+    logger.info('TRANSFER', `Elfogadva`);
     this.executeSendFiles(fromPeerId, session.files);
   }
 
   onRejectTransfer(fromPeerId) {
-    logger.info('TRANSFER', `Elutasítva (${fromPeerId.substring(0, 16)}...)`);
+    logger.info('TRANSFER', `Elutasítva`);
     this.senderSessions.delete(fromPeerId);
     this.releaseWakeLock();
     if (this.onRejected) this.onRejected(fromPeerId);
@@ -606,23 +682,23 @@ class PeerNetworkService {
   // ─────────────────────────────────────────
   async sendFilesToPeer(targetPeerId, fileList) {
     if (!fileList || fileList.length === 0) return;
-    logger.info('TRANSFER', `Küldés: ${fileList.length} fájl → ${targetPeerId.substring(0, 16)}...`);
+    logger.info('TRANSFER', `Küldés: ${fileList.length} fájl → ${targetPeerId}`);
 
     const session = {
-      files: Array.from(fileList),
-      status: 'PROPOSED',
-      isExecuting: false,
+      files:           Array.from(fileList),
+      status:          'PROPOSED',
+      isExecuting:     false,
       abortController: { aborted: false },
     };
     this.senderSessions.set(targetPeerId, session);
 
     const payload = JSON.stringify({
-      type: 'propose_transfer',
+      type:       'propose_transfer',
       transferId: Date.now() + Math.random(),
       senderName: this.myDeviceName,
       totalFiles: fileList.length,
-      fileName: fileList[0]?.name || 'Fájl',
-      fileNames: Array.from(fileList).slice(0, 10).map((f) => f.name),
+      fileName:   fileList[0]?.name || 'Fájl',
+      fileNames:  Array.from(fileList).slice(0, 10).map((f) => f.name),
     });
 
     let conn = this.connections.get(targetPeerId);
@@ -642,7 +718,7 @@ class PeerNetworkService {
         try { conn.send(payload); return; } catch (_) {}
       }
     }
-    logger.warn('TRANSFER', 'Időtúllépés – nem sikerült kapcsolódni a fogadóhoz.');
+    logger.warn('TRANSFER', 'Időtúllépés – nem sikerült kapcsolódni.');
   }
 
   async sendFilesToAll(fileList) {
@@ -666,12 +742,10 @@ class PeerNetworkService {
     }
     this.acquireWakeLock();
     const dc = getRawDataChannel(conn);
-    if (dc && dc.bufferedAmountLowThreshold !== undefined) {
-      dc.bufferedAmountLowThreshold = LOW_WATERMARK;
-    }
+    if (dc && dc.bufferedAmountLowThreshold !== undefined) dc.bufferedAmountLowThreshold = LOW_WATERMARK;
     const receiverFamily = this.onlineDevices.get(targetPeerId)?.deviceFamily || 'desktop';
     const chunkSize      = getChunkSizeFor(receiverFamily);
-    logger.info('TRANSFER', `Fájlküldés elindult. Platform: ${receiverFamily}, Chunk: ${chunkSize / 1024}KB`);
+    logger.info('TRANSFER', `Küldés indul. Platform: ${receiverFamily}, Chunk: ${chunkSize / 1024}KB`);
 
     for (let i = 0; i < fileList.length; i++) {
       const cur = this.senderSessions.get(targetPeerId);
@@ -688,8 +762,12 @@ class PeerNetworkService {
     logger.info('TRANSFER', `Küldés: ${file.name} [${currentIndex}/${totalFiles}]`);
     try {
       conn.send(JSON.stringify({
-        type: 'header', name: file.name, size: file.size,
-        mimeType: file.type || 'application/octet-stream', currentIndex, totalFiles,
+        type:         'header',
+        name:         file.name,
+        size:         file.size,
+        mimeType:     file.type || 'application/octet-stream',
+        currentIndex,
+        totalFiles,
       }));
     } catch (e) {
       logger.error('TRANSFER', `Fejléc hiba: ${e.message}`);
@@ -738,7 +816,7 @@ class PeerNetworkService {
     try {
       if ('wakeLock' in navigator && !this.wakeLockSentinel) {
         this.wakeLockSentinel = await navigator.wakeLock.request('screen');
-        logger.info('SYSTEM', 'WakeLock: képernyő ébrentartás aktiválva.');
+        logger.info('SYSTEM', 'WakeLock aktiválva.');
       }
     } catch (_) {}
   }
@@ -754,18 +832,20 @@ class PeerNetworkService {
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        logger.info('SYSTEM', 'App előtérbe kerülve – kapcsolat ellenőrzés...');
+        logger.info('SYSTEM', 'App előtérbe kerülve.');
         if (this.peer?.disconnected && !this.peer?.destroyed) {
-          try { this.peer.reconnect(); } catch (_) { this.connect(); }
+          try { this.peer.reconnect(); } catch (_) { this.tryClaimSlot(this.mySlotIndex || 1); }
         }
+        this.probeOtherSlots?.();
       }
     });
 
     window.addEventListener('online', () => {
-      logger.info('SYSTEM', 'Hálózat visszaállt – újracsatlakozás...');
+      logger.info('SYSTEM', 'Hálózat visszaállt.');
       if (this.peer?.disconnected && !this.peer?.destroyed) {
-        try { this.peer.reconnect(); } catch (_) { this.connect(); }
+        try { this.peer.reconnect(); } catch (_) { this.tryClaimSlot(this.mySlotIndex || 1); }
       }
+      this.probeOtherSlots?.();
     });
 
     window.addEventListener('hashchange', () => {
@@ -774,24 +854,15 @@ class PeerNetworkService {
   }
 
   // ─────────────────────────────────────────
-  // Public URL helpers (for QR Modal)
-  // ─────────────────────────────────────────
-  getShareUrl() {
-    if (typeof window === 'undefined') return '';
-    const base = window.location.origin + window.location.pathname;
-    if (!this.myId) return base;
-    return `${base}#connect=${encodeURIComponent(this.myId)}`;
-  }
-
-  // ─────────────────────────────────────────
   // Teardown
   // ─────────────────────────────────────────
   destroy() {
     this.isDestroyed = true;
+    if (this.probeTimer)     clearInterval(this.probeTimer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.releaseWakeLock();
-    for (const s of this.senderSessions.values()) s.abortController.aborted = true;
-    for (const s of this.receiverSessions.values()) if (s.watchdogTimer) clearTimeout(s.watchdogTimer);
+    for (const s of this.senderSessions.values())   s.abortController.aborted = true;
+    for (const s of this.receiverSessions.values())  if (s.watchdogTimer) clearTimeout(s.watchdogTimer);
     if (this.peer) { try { this.peer.destroy(); } catch (_) {} this.peer = null; }
     this.connections.clear();
     this.onlineDevices.clear();
