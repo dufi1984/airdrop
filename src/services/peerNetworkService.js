@@ -122,8 +122,10 @@ class PeerNetworkService {
     this.onlineDevices  = new Map(); // peerId → { id, name, deviceInfo, deviceType }
     this.senderSessions = new Map(); // peerId → SenderSession
     this.receiverSessions = new Map(); // peerId → ReceiverSession
+    this.graceTimers    = new Map(); // peerId → setTimeout
 
     // Callbacks (set via init())
+
     this.onStatusChange    = null;
     this.onDevicesUpdate   = null;
     this.onProgress        = null;
@@ -294,6 +296,11 @@ class PeerNetworkService {
   // ─────────────────────────────────────────
   setupConnectionEvents(conn) {
     conn.on('open', () => {
+      if (this.graceTimers.has(conn.peer)) {
+        clearTimeout(this.graceTimers.get(conn.peer));
+        this.graceTimers.delete(conn.peer);
+      }
+
       const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       const peerFamily = conn.metadata?.deviceFamily || 'desktop';
       this.connections.set(conn.peer, conn);
@@ -335,12 +342,32 @@ class PeerNetworkService {
     if (receiverSession?.watchdogTimer) clearTimeout(receiverSession.watchdogTimer);
 
     this.connections.delete(peerId);
-    this.onlineDevices.delete(peerId);
-    this.senderSessions.delete(peerId);
-    this.receiverSessions.delete(peerId);
 
-    if ((hadActiveSender || hadActiveReceiver) && this.onTransferAborted) {
-      this.onTransferAborted(peerId);
+    // If an active transfer was interrupted, clear immediately and abort
+    if (hadActiveSender || hadActiveReceiver) {
+      if (this.graceTimers.has(peerId)) {
+        clearTimeout(this.graceTimers.get(peerId));
+        this.graceTimers.delete(peerId);
+      }
+      this.onlineDevices.delete(peerId);
+      this.senderSessions.delete(peerId);
+      this.receiverSessions.delete(peerId);
+      if (this.onTransferAborted) this.onTransferAborted(peerId);
+      this.notifyDevicesUpdate();
+      return;
+    }
+
+    // Otherwise, retain device in onlineDevices for a 12-second grace period
+    // so devices stay continuously visible during app swiping or photo picking
+    if (!this.graceTimers.has(peerId)) {
+      const timer = setTimeout(() => {
+        this.graceTimers.delete(peerId);
+        this.onlineDevices.delete(peerId);
+        this.senderSessions.delete(peerId);
+        this.receiverSessions.delete(peerId);
+        this.notifyDevicesUpdate();
+      }, 12000);
+      this.graceTimers.set(peerId, timer);
     }
 
     this.notifyDevicesUpdate();
