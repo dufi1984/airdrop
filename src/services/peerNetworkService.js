@@ -203,7 +203,10 @@ class PeerNetworkService {
       });
 
       peer.on('disconnected', () => {
-        if (this.onStatusChange) this.onStatusChange(false);
+        const hasOpenConns = Array.from(this.connections.values()).some((c) => c?.open);
+        if (!hasOpenConns && this.onStatusChange) {
+          this.onStatusChange(false);
+        }
         if (this.peer && !this.peer.destroyed) {
           try { this.peer.reconnect(); } catch (_) {}
           setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1000);
