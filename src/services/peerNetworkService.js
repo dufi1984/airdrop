@@ -712,6 +712,9 @@ class PeerNetworkService {
     }
 
     this.senderSessions.delete(targetPeerId);
+    if (this.peer?.disconnected && !this.peer?.destroyed) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
   }
 
   async streamFile(conn, dc, abortController, file, currentIndex, totalFiles, chunkSize = CHUNK_SIZE) {
