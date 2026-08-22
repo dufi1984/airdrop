@@ -1,6 +1,41 @@
 import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 import { platform } from '../platform';
+import { logger } from '../utils/logger';
+
+// ─────────────────────────────────────────────
+// ICE & TURN Configuration (Symmetric NAT & Cellular Support)
+// ─────────────────────────────────────────────
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  // OpenRelay TURN servers for cellular data (CGNAT) and symmetric NAT traversal
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+];
 
 // ─────────────────────────────────────────────
 // Transfer Constants
@@ -122,8 +157,10 @@ class PeerNetworkService {
     this.onlineDevices  = new Map(); // peerId → { id, name, deviceInfo, deviceType }
     this.senderSessions = new Map(); // peerId → SenderSession
     this.receiverSessions = new Map(); // peerId → ReceiverSession
+    this.graceTimers    = new Map(); // peerId → setTimeout
 
     // Callbacks (set via init())
+
     this.onStatusChange    = null;
     this.onDevicesUpdate   = null;
     this.onProgress        = null;
@@ -169,14 +206,8 @@ class PeerNetworkService {
         secure: true,
         debug: 0,
         config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-          ],
+          iceServers: ICE_SERVERS,
+          sdpSemantics: 'unified-plan',
         },
       });
 
@@ -184,29 +215,96 @@ class PeerNetworkService {
         this.peer = peer;
         this.myId = id;
         this.mySlotIndex = slotIndex;
+        logger.success('PEER', `Szerverhez csatlakozva: ${id} (Slot #${slotIndex})`);
         if (this.onStatusChange) this.onStatusChange(true);
         this.peer.on('connection', (conn) => this.setupConnectionEvents(conn));
         this.startProbing();
+        this.startHeartbeats();
+        this.setupLifecycleListeners();
       });
 
       peer.on('error', (err) => {
         if (err.type === 'unavailable-id') {
+          logger.info('PEER', `Slot #${slotIndex} foglalt, ugrás a következőre...`);
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
         } else {
+          logger.warn('PEER', `Peer hiba: ${err.type}`, err.message);
           console.warn('[Peer] Error:', err.type, err.message);
         }
       });
 
       peer.on('disconnected', () => {
-        if (this.onStatusChange) this.onStatusChange(false);
+        logger.warn('PEER', 'Szignálszerver kapcsolat ideiglenesen megszakadt, újracsatlakozás...');
+        const hasOpenConns = Array.from(this.connections.values()).some((c) => c?.open);
+        if (!hasOpenConns && this.onStatusChange) {
+          this.onStatusChange(false);
+        }
         if (this.peer && !this.peer.destroyed) {
-          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1500);
+          try { this.peer.reconnect(); } catch (_) {}
+          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 500);
         }
       });
     } catch (e) {
+      logger.error('PEER', 'PeerJS inicializálási kivétel', e.message);
       console.error('[Peer] Init exception:', e);
     }
+  }
+
+  // ─────────────────────────────────────────
+  // Heartbeats & Lifecycle Listeners
+  // ─────────────────────────────────────────
+  startHeartbeats() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(() => {
+      if (this.isDestroyed) return;
+
+      // 1. Proactively keep PeerJS WebSocket alive against cellular network idle timeouts
+      if (this.peer && !this.peer.destroyed) {
+        if (this.peer.disconnected) {
+          try { this.peer.reconnect(); } catch (_) {}
+        } else {
+          try {
+            // Keep WebSocket frame alive for cellular carriers
+            const ws = this.peer.socket?._socket;
+            if (ws && ws.readyState === 1) { // 1 = WebSocket.OPEN
+              ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 2. Ping all active peer connections to ensure DataChannel readiness
+      this.connections.forEach((conn) => {
+        if (conn?.open) {
+          try { conn.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+        }
+      });
+    }, 2000);
+  }
+
+  setupLifecycleListeners() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (this._hasLifecycleListeners) return;
+    this._hasLifecycleListeners = true;
+
+    const fastWakeUp = () => {
+      if (this.isDestroyed) return;
+      if (this.peer?.disconnected && !this.peer?.destroyed) {
+        try { this.peer.reconnect(); } catch (_) {}
+      }
+      this.probeOtherSlots();
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fastWakeUp();
+      }
+    });
+
+    window.addEventListener('online', fastWakeUp);
+    window.addEventListener('focus', fastWakeUp);
+    window.addEventListener('pageshow', fastWakeUp);
   }
 
   // ─────────────────────────────────────────
@@ -215,11 +313,14 @@ class PeerNetworkService {
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => this.probeOtherSlots(), 4000);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 2500);
   }
 
   probeOtherSlots() {
-    if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
+    if (!this.peer || this.peer.destroyed) return;
+    if (this.peer.disconnected) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (i === this.mySlotIndex) continue;
       const targetId = `${SLOT_PREFIX}${i}`;
@@ -230,7 +331,10 @@ class PeerNetworkService {
   }
 
   connectToSlot(targetSlotId) {
-    if (!this.peer || this.peer.destroyed || this.peer.disconnected) return;
+    if (!this.peer || this.peer.destroyed) return;
+    if (this.peer.disconnected) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
     try {
       const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
@@ -245,12 +349,33 @@ class PeerNetworkService {
   // ─────────────────────────────────────────
   setupConnectionEvents(conn) {
     conn.on('open', () => {
+      if (this.graceTimers.has(conn.peer)) {
+        clearTimeout(this.graceTimers.get(conn.peer));
+        this.graceTimers.delete(conn.peer);
+      }
+
       const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       const peerFamily = conn.metadata?.deviceFamily || 'desktop';
       this.connections.set(conn.peer, conn);
       this.onlineDevices.set(conn.peer, {
         id: conn.peer, name: peerName, deviceInfo: peerName, deviceType: peerName, deviceFamily: peerFamily,
       });
+
+      logger.success('DISCOVERY', `Közvetlen P2P kapcsolat létrejött: ${peerName} (${conn.peer})`);
+
+      // Monitor WebRTC ICE state for diagnostics
+      if (conn.peerConnection) {
+        try {
+          conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+            const state = conn.peerConnection?.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
+              logger.ice(`WebRTC ICE kapcsolat stabil: ${state} (${conn.peer})`);
+            } else if (state === 'failed' || state === 'disconnected') {
+              logger.warn('ICE', `WebRTC ICE állapotváltozás: ${state} (${conn.peer})`);
+            }
+          });
+        } catch (_) {}
+      }
 
       // Configure native DataChannel for event-driven backpressure
       const dc = getRawDataChannel(conn);
@@ -269,8 +394,14 @@ class PeerNetworkService {
     });
 
     conn.on('data', (data) => this.handleIncomingData(conn.peer, data));
-    conn.on('close', () => this.cleanupPeerSession(conn.peer));
-    conn.on('error', () => this.cleanupPeerSession(conn.peer));
+    conn.on('close', () => {
+      logger.info('DISCOVERY', `Kapcsolat bontva: ${conn.peer}`);
+      this.cleanupPeerSession(conn.peer);
+    });
+    conn.on('error', (err) => {
+      logger.warn('PEER', `Kapcsolati hiba (${conn.peer}):`, err?.message || err);
+      this.cleanupPeerSession(conn.peer);
+    });
   }
 
   cleanupPeerSession(peerId) {
@@ -286,12 +417,32 @@ class PeerNetworkService {
     if (receiverSession?.watchdogTimer) clearTimeout(receiverSession.watchdogTimer);
 
     this.connections.delete(peerId);
-    this.onlineDevices.delete(peerId);
-    this.senderSessions.delete(peerId);
-    this.receiverSessions.delete(peerId);
 
-    if ((hadActiveSender || hadActiveReceiver) && this.onTransferAborted) {
-      this.onTransferAborted(peerId);
+    // If an active transfer was interrupted, clear immediately and abort
+    if (hadActiveSender || hadActiveReceiver) {
+      if (this.graceTimers.has(peerId)) {
+        clearTimeout(this.graceTimers.get(peerId));
+        this.graceTimers.delete(peerId);
+      }
+      this.onlineDevices.delete(peerId);
+      this.senderSessions.delete(peerId);
+      this.receiverSessions.delete(peerId);
+      if (this.onTransferAborted) this.onTransferAborted(peerId);
+      this.notifyDevicesUpdate();
+      return;
+    }
+
+    // Otherwise, retain device in onlineDevices for a 12-second grace period
+    // so devices stay continuously visible during app swiping or photo picking
+    if (!this.graceTimers.has(peerId)) {
+      const timer = setTimeout(() => {
+        this.graceTimers.delete(peerId);
+        this.onlineDevices.delete(peerId);
+        this.senderSessions.delete(peerId);
+        this.receiverSessions.delete(peerId);
+        this.notifyDevicesUpdate();
+      }, 12000);
+      this.graceTimers.set(peerId, timer);
     }
 
     this.notifyDevicesUpdate();
@@ -324,6 +475,14 @@ class PeerNetworkService {
     try { msg = JSON.parse(data); } catch { return; }
 
     switch (msg.type) {
+      case 'ping':
+        try {
+          const conn = this.connections.get(fromPeerId);
+          if (conn?.open) conn.send(JSON.stringify({ type: 'pong' }));
+        } catch (_) {}
+        return;
+      case 'pong':
+        return;
       case 'handshake':              return this.onHandshake(fromPeerId, msg);
       case 'propose_transfer':       return this.onProposeTransfer(fromPeerId, msg);
       case 'cancel_proposed_transfer': return this.onCancelProposedTransfer(fromPeerId);
@@ -545,7 +704,8 @@ class PeerNetworkService {
   async sendFilesToPeer(targetPeerId, fileList) {
     if (!fileList || fileList.length === 0) return;
 
-    this.senderSessions.set(targetPeerId, makeSenderSession(fileList));
+    const session = makeSenderSession(fileList);
+    this.senderSessions.set(targetPeerId, session);
 
     const payload = JSON.stringify({
       type:        'propose_transfer',
@@ -557,20 +717,28 @@ class PeerNetworkService {
     });
 
     let conn = this.connections.get(targetPeerId);
-    let sent = false;
 
     if (conn?.open) {
-      try { conn.send(payload); sent = true; } catch (_) { this.connections.delete(targetPeerId); }
+      try {
+        conn.send(payload);
+        return; // Sent once, exit immediately to prevent duplicate proposals!
+      } catch (_) {
+        this.connections.delete(targetPeerId);
+      }
     }
 
-    if (!sent) {
-      this.connectToSlot(targetPeerId);
-      for (let i = 0; i < 25; i++) {
-        await new Promise(r => setTimeout(r, 100));
-        conn = this.connections.get(targetPeerId);
-        if (conn?.open) {
-          try { conn.send(payload); sent = true; break; } catch (_) {}
-        }
+    // If socket not ready yet, connect and wait until open
+    this.connectToSlot(targetPeerId);
+    for (let i = 0; i < 30; i++) {
+      const curSession = this.senderSessions.get(targetPeerId);
+      if (!curSession || curSession.abortController.aborted) return; // Cancelled by user!
+      await new Promise(r => setTimeout(r, 100));
+      conn = this.connections.get(targetPeerId);
+      if (conn?.open) {
+        try {
+          conn.send(payload);
+          return; // Sent once, exit loop immediately!
+        } catch (_) {}
       }
     }
   }
@@ -616,6 +784,9 @@ class PeerNetworkService {
     }
 
     this.senderSessions.delete(targetPeerId);
+    if (this.peer?.disconnected && !this.peer?.destroyed) {
+      try { this.peer.reconnect(); } catch (_) {}
+    }
   }
 
   async streamFile(conn, dc, abortController, file, currentIndex, totalFiles, chunkSize = CHUNK_SIZE) {

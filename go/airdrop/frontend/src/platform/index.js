@@ -38,15 +38,14 @@ function downloadBlob(blobUrl, name) {
 function buildPlatform() {
   const ua = navigator.userAgent;
 
-  // ── Képesség 1: Natív fájlmegosztás (iOS Share Sheet) ─────────────────
-  // A navigator.share fájlmegosztást CSAK mobil eszközökön használjuk.
-  // Windows 11 Chrome, macOS Chrome/Firefox szintén támogatja a share API-t,
-  // de ott a Windows/macOS megosztó panel nyílik meg (Outlook, WhatsApp stb.)
-  // – ez nem hasznos, a felhasználó közvetlen letöltést vár.
-  // Ezért: canShareFiles csak akkor true, ha mobilon is vagyunk.
-  const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(ua);
+  // ── Képesség 1: Natív fájlmegosztás (Kizárólag iOS Share Sheet) ────────
+  // A navigator.share fájlmegosztást KIZÁRÓLAG iOS eszközökön (iPhone, iPad) használjuk,
+  // mert iOS-en az <a download> új fülön nyitja meg a képet ahelyett, hogy a Fotókba mentené.
+  // Androidon az <a download> automatikusan a Letöltések/Galéria mappába menti a fájlt.
+  // Az Android natív megosztás paneljén (az OS menüben) nincs közvetlen "Mentés a galériába" opció.
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
-  const canShareFiles = isMobileDevice && (() => {
+  const canShareFiles = isIOS && (() => {
     try {
       return !!(
         navigator.share &&

@@ -82,6 +82,34 @@ export default function App() {
     window.__airdrop_has_received_files = receivedFiles.length > 0;
   }, [filesToSend, receivedFiles]);
 
+  // Keep screen awake while app is active so mobile connection stays alive
+  useEffect(() => {
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (_) {}
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock) {
+        try { wakeLock.release(); } catch (_) {}
+      }
+    };
+  }, []);
+
   // Pre-unlock AudioContext on first user interaction anywhere on the page
   useEffect(() => {
     const unlockAudio = () => {
@@ -174,7 +202,15 @@ export default function App() {
     };
   }, []);
 
+  // Clean URL address bar on mount so it always displays clean /airdrop/ without query params
+  useEffect(() => {
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
+  }, []);
+
   // Force cache-busting hard page reload
+
   const handleForceAppReload = async () => {
     if (filesToSend.length > 0) {
       const confirmReload = window.confirm('A kijelölt fájlok törlődnek. Biztosan frissíted?');
@@ -268,7 +304,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-[#1677ff] selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative bg-[#141414]">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-[#1677ff] selection:text-white pb-[env(safe-area-inset-bottom,0px)] relative bg-[#050505]">
       
       {/* Header Bar */}
       <Header
@@ -280,14 +316,14 @@ export default function App() {
 
       {/* Ant Design Floating Toast Notification Banner */}
       {alertMsg && (
-        <div className="fixed top-16 inset-x-0 mx-auto w-max z-[9990] max-w-[90vw] px-4 py-2.5 rounded-xl bg-[#1f1f1f] border border-[#303030] text-white/90 text-xs sm:text-sm font-semibold text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#1677ff]" />
+        <div className="fixed top-16 inset-x-0 mx-auto w-max z-[9990] max-w-[90vw] px-3.5 py-2 rounded-lg bg-[#141414] border border-white/[0.12] text-white/90 text-xs font-medium text-center shadow-2xl backdrop-blur-md animate-fade-in pointer-events-none flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#1677ff]" />
           <span>{alertMsg}</span>
         </div>
       )}
 
       {/* Main Container with Responsive Ordering */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-3.5 py-4 sm:px-6 flex flex-col gap-3.5">
 
         {/* 1. File Selector Component */}
         <FilePicker
@@ -324,10 +360,11 @@ export default function App() {
 
       </main>
 
-      {/* Footer with Subtle Heart Icon */}
-      <footer className="w-full border-t border-[#303030] py-4 text-center text-xs text-white/45 flex items-center justify-center gap-1.5 font-medium">
+      {/* Footer with Subtle Heart Icon and Ant Design Glow Beam */}
+      <footer className="w-full border-t border-white/[0.08] py-3.5 text-center text-xs text-white/35 flex items-center justify-center gap-1.5 font-normal relative overflow-hidden">
+        <div className="ant-footer-beam" />
         <span>Airdrop by Dufi</span>
-        <Heart className="w-3.5 h-3.5 text-[#ff4d4f] fill-[#ff4d4f]/80" />
+        <Heart className="w-3 h-3 text-[#ff4d4f] fill-[#ff4d4f]/60" />
       </footer>
 
       {/* Incoming Prompt Modal Prompt */}

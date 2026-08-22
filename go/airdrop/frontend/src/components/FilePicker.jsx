@@ -62,7 +62,7 @@ export default function FilePicker({ lang, files, setFiles }) {
   const isEmpty = files.length === 0;
 
   return (
-    <div className="w-full bg-[#1f1f1f] rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-[#303030] shadow-xl transition-all">
+    <div className="w-full bg-[#111111] rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 border border-white/[0.08] shadow-2xl transition-all">
       
       {/* Media Input Opening Gallery Directly on Android & Mobile */}
       <input
@@ -76,32 +76,32 @@ export default function FilePicker({ lang, files, setFiles }) {
 
       {/* Reassuring Large File Toast */}
       {largeFileNotice && (
-        <div className="w-full p-2.5 rounded-xl bg-[#1677ff]/10 border border-[#1677ff]/30 text-[#1677ff] text-xs font-medium flex items-center justify-center gap-2">
+        <div className="w-full p-2.5 rounded-lg bg-[#112544] border border-[#163c70] text-[#1677ff] text-xs font-medium flex items-center justify-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-[#1677ff] shrink-0" />
           <span>{largeFileNotice}</span>
         </div>
       )}
 
-      {/* Ant Design Dragger Style Dashed Dropzone */}
+      {/* Ant Design Dragger Dropzone Box */}
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`w-full ant-dropzone flex items-center justify-center gap-3.5 cursor-pointer group transition-all duration-200 ${
+        className={`w-full ant-dragger flex items-center justify-center gap-3.5 cursor-pointer group transition-all duration-200 ${
           isEmpty
-            ? 'py-10 px-6 min-h-[160px]'
-            : 'py-4 px-5 min-h-[75px]'
+            ? 'py-9 px-6 min-h-[150px]'
+            : 'py-3.5 px-4 min-h-[70px]'
         } ${isDragging ? 'is-dragging' : ''}`}
       >
-        <div className={`rounded-xl bg-[#1677ff]/10 border border-[#1677ff]/20 flex items-center justify-center shrink-0 transition-all ${
-          isEmpty ? 'w-12 h-12' : 'w-9 h-9'
+        <div className={`rounded-lg bg-[#1677ff]/10 border border-[#1677ff]/20 flex items-center justify-center shrink-0 transition-all ${
+          isEmpty ? 'w-11 h-11' : 'w-8 h-8'
         }`}>
-          <FolderSearch className={`${isEmpty ? 'w-6 h-6' : 'w-4.5 h-4.5'} text-[#1677ff]`} />
+          <FolderSearch className={`${isEmpty ? 'w-5 h-5' : 'w-4 h-4'} text-[#1677ff]`} />
         </div>
         <div className="flex flex-col text-left">
-          <h3 className={`font-bold text-white/90 tracking-tight transition-all ${
-            isEmpty ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+          <h3 className={`font-semibold text-white/90 tracking-tight transition-all ${
+            isEmpty ? 'text-base' : 'text-xs sm:text-sm'
           }`}>
             Tallózás
           </h3>
@@ -113,9 +113,9 @@ export default function FilePicker({ lang, files, setFiles }) {
 
       {/* Selected Files Queue */}
       {!isEmpty && (
-        <div className="flex flex-col gap-2 pt-1 border-t border-[#303030] animate-fade-in">
+        <div className="flex flex-col gap-2 pt-1 border-t border-white/[0.08] animate-fade-in">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#1677ff] tracking-wider">
+            <span className="text-[11px] font-medium text-[#1677ff] bg-[#112544] border border-[#163c70] px-2 py-0.5 rounded">
               {files.length} {t.filesSelected}
             </span>
             <button
@@ -131,7 +131,7 @@ export default function FilePicker({ lang, files, setFiles }) {
             {files.map((file, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-2.5 rounded-xl bg-[#141414] border border-[#303030] hover:border-[#424242] text-xs text-white/88 shadow-sm shrink-0 h-[48px] transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-[#171717] border border-white/[0.08] hover:border-white/[0.15] text-xs text-white/88 shadow-sm shrink-0 h-[46px] transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
                   {getFileIcon(file)}
@@ -142,7 +142,7 @@ export default function FilePicker({ lang, files, setFiles }) {
                 </div>
                 <button
                   onClick={() => removeFile(idx)}
-                  className="p-1 rounded-lg text-white/45 hover:text-[#ff4d4f] hover:bg-[#262626] transition-colors shrink-0 cursor-pointer"
+                  className="p-1 rounded text-white/45 hover:text-[#ff4d4f] hover:bg-white/[0.05] transition-colors shrink-0 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -151,7 +151,7 @@ export default function FilePicker({ lang, files, setFiles }) {
           </div>
 
           {/* Guidance Banner */}
-          <div className="p-2.5 rounded-xl bg-[#1677ff]/10 border border-[#1677ff]/30 text-xs text-[#1677ff] flex items-center justify-center gap-2 font-medium">
+          <div className="p-2 rounded-lg bg-[#112544] border border-[#163c70] text-xs text-[#1677ff] flex items-center justify-center gap-2 font-medium">
             <ArrowDown className="w-3.5 h-3.5 text-[#1677ff]" />
             <span>Válaszd ki az eszközt a küldéshez</span>
           </div>

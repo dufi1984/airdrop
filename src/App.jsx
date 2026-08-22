@@ -82,6 +82,34 @@ export default function App() {
     window.__airdrop_has_received_files = receivedFiles.length > 0;
   }, [filesToSend, receivedFiles]);
 
+  // Keep screen awake while app is active so mobile connection stays alive
+  useEffect(() => {
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (_) {}
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock) {
+        try { wakeLock.release(); } catch (_) {}
+      }
+    };
+  }, []);
+
   // Pre-unlock AudioContext on first user interaction anywhere on the page
   useEffect(() => {
     const unlockAudio = () => {

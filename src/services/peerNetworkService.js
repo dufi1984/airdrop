@@ -1,6 +1,41 @@
 import Peer from 'peerjs';
 import { detectDeviceName } from '../utils/formatters';
 import { platform } from '../platform';
+import { logger } from '../utils/logger';
+
+// ─────────────────────────────────────────────
+// ICE & TURN Configuration (Symmetric NAT & Cellular Support)
+// ─────────────────────────────────────────────
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'stun:stun.relay.metered.ca:80' },
+  // OpenRelay TURN servers for cellular data (CGNAT) and symmetric NAT traversal
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+  {
+    urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelay',
+    credential: 'openrelay',
+  },
+];
 
 // ─────────────────────────────────────────────
 // Transfer Constants
@@ -171,14 +206,8 @@ class PeerNetworkService {
         secure: true,
         debug: 0,
         config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-          ],
+          iceServers: ICE_SERVERS,
+          sdpSemantics: 'unified-plan',
         },
       });
 
@@ -186,6 +215,7 @@ class PeerNetworkService {
         this.peer = peer;
         this.myId = id;
         this.mySlotIndex = slotIndex;
+        logger.success('PEER', `Szerverhez csatlakozva: ${id} (Slot #${slotIndex})`);
         if (this.onStatusChange) this.onStatusChange(true);
         this.peer.on('connection', (conn) => this.setupConnectionEvents(conn));
         this.startProbing();
@@ -195,24 +225,28 @@ class PeerNetworkService {
 
       peer.on('error', (err) => {
         if (err.type === 'unavailable-id') {
+          logger.info('PEER', `Slot #${slotIndex} foglalt, ugrás a következőre...`);
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
         } else {
+          logger.warn('PEER', `Peer hiba: ${err.type}`, err.message);
           console.warn('[Peer] Error:', err.type, err.message);
         }
       });
 
       peer.on('disconnected', () => {
+        logger.warn('PEER', 'Szignálszerver kapcsolat ideiglenesen megszakadt, újracsatlakozás...');
         const hasOpenConns = Array.from(this.connections.values()).some((c) => c?.open);
         if (!hasOpenConns && this.onStatusChange) {
           this.onStatusChange(false);
         }
         if (this.peer && !this.peer.destroyed) {
           try { this.peer.reconnect(); } catch (_) {}
-          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 1000);
+          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 500);
         }
       });
     } catch (e) {
+      logger.error('PEER', 'PeerJS inicializálási kivétel', e.message);
       console.error('[Peer] Init exception:', e);
     }
   }
@@ -224,15 +258,29 @@ class PeerNetworkService {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = setInterval(() => {
       if (this.isDestroyed) return;
-      if (this.peer?.disconnected && !this.peer?.destroyed) {
-        try { this.peer.reconnect(); } catch (_) {}
+
+      // 1. Proactively keep PeerJS WebSocket alive against cellular network idle timeouts
+      if (this.peer && !this.peer.destroyed) {
+        if (this.peer.disconnected) {
+          try { this.peer.reconnect(); } catch (_) {}
+        } else {
+          try {
+            // Keep WebSocket frame alive for cellular carriers
+            const ws = this.peer.socket?._socket;
+            if (ws && ws.readyState === 1) { // 1 = WebSocket.OPEN
+              ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
+            }
+          } catch (_) {}
+        }
       }
+
+      // 2. Ping all active peer connections to ensure DataChannel readiness
       this.connections.forEach((conn) => {
         if (conn?.open) {
           try { conn.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
         }
       });
-    }, 3000);
+    }, 2000);
   }
 
   setupLifecycleListeners() {
@@ -240,21 +288,23 @@ class PeerNetworkService {
     if (this._hasLifecycleListeners) return;
     this._hasLifecycleListeners = true;
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        if (this.peer?.disconnected && !this.peer?.destroyed) {
-          try { this.peer.reconnect(); } catch (_) {}
-        }
-        this.probeOtherSlots();
-      }
-    });
-
-    window.addEventListener('online', () => {
+    const fastWakeUp = () => {
+      if (this.isDestroyed) return;
       if (this.peer?.disconnected && !this.peer?.destroyed) {
         try { this.peer.reconnect(); } catch (_) {}
       }
       this.probeOtherSlots();
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fastWakeUp();
+      }
     });
+
+    window.addEventListener('online', fastWakeUp);
+    window.addEventListener('focus', fastWakeUp);
+    window.addEventListener('pageshow', fastWakeUp);
   }
 
   // ─────────────────────────────────────────
@@ -263,7 +313,7 @@ class PeerNetworkService {
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => this.probeOtherSlots(), 4000);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 2500);
   }
 
   probeOtherSlots() {
@@ -311,6 +361,22 @@ class PeerNetworkService {
         id: conn.peer, name: peerName, deviceInfo: peerName, deviceType: peerName, deviceFamily: peerFamily,
       });
 
+      logger.success('DISCOVERY', `Közvetlen P2P kapcsolat létrejött: ${peerName} (${conn.peer})`);
+
+      // Monitor WebRTC ICE state for diagnostics
+      if (conn.peerConnection) {
+        try {
+          conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
+            const state = conn.peerConnection?.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
+              logger.ice(`WebRTC ICE kapcsolat stabil: ${state} (${conn.peer})`);
+            } else if (state === 'failed' || state === 'disconnected') {
+              logger.warn('ICE', `WebRTC ICE állapotváltozás: ${state} (${conn.peer})`);
+            }
+          });
+        } catch (_) {}
+      }
+
       // Configure native DataChannel for event-driven backpressure
       const dc = getRawDataChannel(conn);
       if (dc) dc.bufferedAmountLowThreshold = LOW_WATERMARK;
@@ -328,8 +394,14 @@ class PeerNetworkService {
     });
 
     conn.on('data', (data) => this.handleIncomingData(conn.peer, data));
-    conn.on('close', () => this.cleanupPeerSession(conn.peer));
-    conn.on('error', () => this.cleanupPeerSession(conn.peer));
+    conn.on('close', () => {
+      logger.info('DISCOVERY', `Kapcsolat bontva: ${conn.peer}`);
+      this.cleanupPeerSession(conn.peer);
+    });
+    conn.on('error', (err) => {
+      logger.warn('PEER', `Kapcsolati hiba (${conn.peer}):`, err?.message || err);
+      this.cleanupPeerSession(conn.peer);
+    });
   }
 
   cleanupPeerSession(peerId) {

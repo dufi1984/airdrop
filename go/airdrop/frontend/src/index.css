@@ -3,35 +3,13 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --ant-bg-base: #141414;
-    --ant-bg-card: #1f1f1f;
-    --ant-bg-elevated: #262626;
-    --ant-border: #303030;
-    --ant-border-secondary: #424242;
-    --ant-primary: #1677ff;
-    --ant-primary-hover: #4096ff;
-    --ant-primary-active: #0958d9;
-    --ant-primary-bg: rgba(22, 119, 255, 0.12);
-    --ant-success: #52c41a;
-    --ant-success-bg: rgba(82, 196, 26, 0.12);
-    --ant-warning: #faad14;
-    --ant-warning-bg: rgba(250, 173, 20, 0.12);
-    --ant-error: #ff4d4f;
-    --ant-error-bg: rgba(255, 77, 79, 0.12);
-    --ant-text: rgba(255, 255, 255, 0.88);
-    --ant-text-secondary: rgba(255, 255, 255, 0.45);
-    --ant-text-tertiary: rgba(255, 255, 255, 0.25);
-  }
-
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-      'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-      'Noto Color Emoji';
-    background-color: var(--ant-bg-base);
-    color: var(--ant-text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #050505;
+    color: rgba(255, 255, 255, 0.88);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -49,80 +27,133 @@
 
 /* Custom Scrollbar - Ant Design Dark Style */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #141414;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #303030;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #424242;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* Ant Design Dark Dropzone Dragger */
-.ant-dropzone {
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+.ant-dragger {
+  border: 1px dashed rgba(255, 255, 255, 0.18);
   border-radius: 12px;
   background-color: rgba(255, 255, 255, 0.02);
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
-.ant-dropzone:hover,
-.ant-dropzone.is-dragging {
+.ant-dragger:hover,
+.ant-dragger.is-dragging {
   border-color: #1677ff !important;
   background-color: rgba(22, 119, 255, 0.06) !important;
 }
 
-/* Ant Design Dark Card Surfaces */
-.ant-card-dark {
-  background: #1f1f1f;
-  border: 1px solid #303030;
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-.ant-card-inner {
-  background: #141414;
-  border: 1px solid #303030;
-  border-radius: 10px;
-}
-
-/* Ant Design Button Ripple / Hover effects */
+/* Ant Design Primary Button */
 .ant-btn-primary {
-  background-color: #1677ff;
-  border-color: #1677ff;
+  background: #1677ff;
+  border: 1px solid #1677ff;
+  color: #ffffff;
+  border-radius: 6px;
+  font-weight: 500;
   box-shadow: 0 2px 0 rgba(5, 145, 255, 0.1);
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
 .ant-btn-primary:hover {
-  background-color: #4096ff;
+  background: #4096ff;
   border-color: #4096ff;
+  color: #ffffff;
 }
 
 .ant-btn-primary:active {
-  background-color: #0958d9;
+  background: #0958d9;
   border-color: #0958d9;
 }
 
+/* Ant Design Secondary / Outlined Button */
+.ant-btn-default {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.ant-btn-default:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+  background: rgba(22, 119, 255, 0.05);
+}
+
+/* Ant Design Danger Button */
 .ant-btn-danger {
-  background-color: rgba(255, 77, 79, 0.15);
-  border: 1px solid rgba(255, 77, 79, 0.4);
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.3);
   color: #ff4d4f;
+  border-radius: 6px;
+  font-weight: 500;
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
 .ant-btn-danger:hover {
-  background-color: rgba(255, 77, 79, 0.25);
+  background: rgba(255, 77, 79, 0.2);
   border-color: #ff4d4f;
   color: #ff7875;
+}
+
+/* Ant Design Animated Footer Border Beam (15s cycle - Right to Left) */
+@keyframes footerGlowBeam {
+  0% {
+    transform: translateX(350%);
+    opacity: 0;
+  }
+  3% {
+    opacity: 1;
+  }
+  24% {
+    opacity: 1;
+  }
+  28% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.ant-footer-beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ant-footer-beam::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(22, 119, 255, 0.3) 25%, #1677ff 50%, #69b1ff 60%, rgba(22, 119, 255, 0.3) 75%, transparent 100%);
+  box-shadow: 0 0 10px #1677ff, 0 0 20px rgba(105, 177, 255, 0.8);
+  animation: footerGlowBeam 15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* Animations */
