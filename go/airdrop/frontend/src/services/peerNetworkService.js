@@ -158,6 +158,7 @@ class PeerNetworkService {
     this.senderSessions = new Map(); // peerId → SenderSession
     this.receiverSessions = new Map(); // peerId → ReceiverSession
     this.graceTimers    = new Map(); // peerId → setTimeout
+    this.unavailableSlots = new Map(); // peerId → timestamp (cooldown for empty slots)
 
     // Callbacks (set via init())
 
@@ -172,6 +173,16 @@ class PeerNetworkService {
 
     this.probeTimer  = null;
     this.isDestroyed = false;
+  }
+
+  isConnectionHealthy(peerId) {
+    const conn = this.connections.get(peerId);
+    if (!conn || !conn.open) return false;
+    const iceState = conn.peerConnection?.iceConnectionState;
+    if (iceState && (iceState === 'disconnected' || iceState === 'failed' || iceState === 'closed')) {
+      return false;
+    }
+    return true;
   }
 
   // ─────────────────────────────────────────
@@ -228,6 +239,12 @@ class PeerNetworkService {
           logger.info('PEER', `Slot #${slotIndex} foglalt, ugrás a következőre...`);
           peer.destroy();
           this.tryClaimSlot(slotIndex + 1);
+        } else if (err.type === 'peer-unavailable') {
+          // Track unavailable slot to avoid flooding the server with repeated connection attempts
+          const match = (err.message || '').match(/airdrop-p2p-v5-\d+/);
+          if (match) {
+            this.unavailableSlots.set(match[0], Date.now());
+          }
         } else {
           logger.warn('PEER', `Peer hiba: ${err.type}`, err.message);
           console.warn('[Peer] Error:', err.type, err.message);
@@ -285,6 +302,7 @@ class PeerNetworkService {
 
     const fastWakeUp = () => {
       if (this.isDestroyed) return;
+      this.unavailableSlots.clear(); // Clear cooldowns so we immediately scan all slots
       if (this.peer?.disconnected && !this.peer?.destroyed) {
         try { this.peer.reconnect(); } catch (_) {}
       }
@@ -308,7 +326,7 @@ class PeerNetworkService {
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => this.probeOtherSlots(), 2500);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 3000);
   }
 
   probeOtherSlots() {
@@ -316,11 +334,21 @@ class PeerNetworkService {
     if (this.peer.disconnected) {
       try { this.peer.reconnect(); } catch (_) {}
     }
+    const now = Date.now();
     for (let i = 1; i <= MAX_SLOTS; i++) {
       if (i === this.mySlotIndex) continue;
       const targetId = `${SLOT_PREFIX}${i}`;
-      const existing = this.connections.get(targetId);
-      if (!existing || !existing.open) this.connectToSlot(targetId);
+
+      // If we already have a healthy open connection, skip
+      if (this.isConnectionHealthy(targetId)) continue;
+
+      // If this slot was marked unavailable, only retry after 15s cooldown
+      const lastUnavailable = this.unavailableSlots.get(targetId);
+      if (lastUnavailable && now - lastUnavailable < 15000) {
+        continue;
+      }
+
+      this.connectToSlot(targetId);
     }
     this.notifyDevicesUpdate();
   }
@@ -348,6 +376,7 @@ class PeerNetworkService {
         clearTimeout(this.graceTimers.get(conn.peer));
         this.graceTimers.delete(conn.peer);
       }
+      this.unavailableSlots.delete(conn.peer);
 
       const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
       const peerFamily = conn.metadata?.deviceFamily || 'desktop';
@@ -358,15 +387,16 @@ class PeerNetworkService {
 
       logger.success('DISCOVERY', `Közvetlen P2P kapcsolat létrejött: ${peerName} (${conn.peer})`);
 
-      // Monitor WebRTC ICE state for diagnostics
+      // Monitor WebRTC ICE state for diagnostics & auto-recovery
       if (conn.peerConnection) {
         try {
           conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
             const state = conn.peerConnection?.iceConnectionState;
             if (state === 'connected' || state === 'completed') {
               logger.ice(`WebRTC ICE kapcsolat stabil: ${state} (${conn.peer})`);
-            } else if (state === 'failed' || state === 'disconnected') {
-              logger.warn('ICE', `WebRTC ICE állapotváltozás: ${state} (${conn.peer})`);
+            } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+              logger.warn('ICE', `WebRTC ICE kapcsolat megszakadt: ${state} (${conn.peer})`);
+              this.cleanupPeerSession(conn.peer);
             }
           });
         } catch (_) {}
@@ -713,25 +743,30 @@ class PeerNetworkService {
 
     let conn = this.connections.get(targetPeerId);
 
-    if (conn?.open) {
+    if (this.isConnectionHealthy(targetPeerId)) {
       try {
         conn.send(payload);
+        logger.info('TRANSFER', `Átviteli kérelem elküldve (${targetPeerId})`);
         return; // Sent once, exit immediately to prevent duplicate proposals!
       } catch (_) {
-        this.connections.delete(targetPeerId);
+        this.cleanupPeerSession(targetPeerId);
       }
+    } else if (conn) {
+      // Stale or dead ICE connection – clean it up before attempting fresh connection
+      this.cleanupPeerSession(targetPeerId);
     }
 
-    // If socket not ready yet, connect and wait until open
+    // If socket not ready yet, connect and wait until open & healthy
     this.connectToSlot(targetPeerId);
     for (let i = 0; i < 40; i++) {
       const curSession = this.senderSessions.get(targetPeerId);
       if (!curSession || curSession.abortController.aborted) return; // Cancelled by user!
       await new Promise(r => setTimeout(r, 100));
-      conn = this.connections.get(targetPeerId);
-      if (conn?.open) {
+      if (this.isConnectionHealthy(targetPeerId)) {
+        conn = this.connections.get(targetPeerId);
         try {
           conn.send(payload);
+          logger.info('TRANSFER', `Átviteli kérelem elküldve (${targetPeerId})`);
           return; // Sent once, exit loop immediately!
         } catch (_) {}
       }
