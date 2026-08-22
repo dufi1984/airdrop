@@ -341,19 +341,12 @@ class PeerNetworkService {
       if (i === this.mySlotIndex) continue;
       const targetId = `${SLOT_PREFIX}${i}`;
 
-      // If we already have a healthy open connection, skip
+      // If we already have a healthy open connection to this device, skip
       if (this.isConnectionHealthy(targetId)) continue;
 
-      // STRICT P2P RULE: Lower slot index always initiates connection to higher slot index.
-      // Slot 1 connects to 2..6, Slot 2 connects to 3..6, etc.
-      // Higher slots only listen, preventing mutual connection collisions completely!
-      if (this.mySlotIndex > i) {
-        continue;
-      }
-
-      // Small 2-second cooldown only if this slot previously reported unavailable
+      // 30-second cooldown for empty slots to protect 0.peerjs.com from rate-limiting / socket drops
       const lastUnavailable = this.unavailableSlots.get(targetId);
-      if (lastUnavailable && now - lastUnavailable < 2000) {
+      if (lastUnavailable && now - lastUnavailable < 30000) {
         continue;
       }
 
