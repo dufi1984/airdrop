@@ -319,6 +319,8 @@ class PeerNetworkService {
     window.addEventListener('online', fastWakeUp);
     window.addEventListener('focus', fastWakeUp);
     window.addEventListener('pageshow', fastWakeUp);
+    window.addEventListener('beforeunload', () => this.destroy());
+    window.addEventListener('pagehide', () => this.destroy());
   }
 
   // ─────────────────────────────────────────
@@ -343,10 +345,20 @@ class PeerNetworkService {
       // If we already have a healthy open connection, skip
       if (this.isConnectionHealthy(targetId)) continue;
 
-      // If this slot was marked unavailable, only retry after 15s cooldown
-      const lastUnavailable = this.unavailableSlots.get(targetId);
-      if (lastUnavailable && now - lastUnavailable < 15000) {
-        continue;
+      // RULE: To prevent simultaneous duplicate connection collisions,
+      // lower slot index initiates connection to higher slot index.
+      // Higher slot indices only probe lower slots as a fallback after 12s.
+      if (this.mySlotIndex > i) {
+        const lastUnavailable = this.unavailableSlots.get(targetId);
+        if (!lastUnavailable || now - lastUnavailable < 12000) {
+          continue; // Let the lower slot index connect to us
+        }
+      } else {
+        // Lower slot: probe higher slot with 15s cooldown for empty slots
+        const lastUnavailable = this.unavailableSlots.get(targetId);
+        if (lastUnavailable && now - lastUnavailable < 15000) {
+          continue;
+        }
       }
 
       this.connectToSlot(targetId);
@@ -380,6 +392,13 @@ class PeerNetworkService {
   // ─────────────────────────────────────────
   setupConnectionEvents(conn) {
     conn.on('open', () => {
+      const existing = this.connections.get(conn.peer);
+      if (existing && existing !== conn && existing.open && this.isConnectionHealthy(conn.peer)) {
+        // Keep active healthy connection, close incoming duplicate
+        try { conn.close(); } catch (_) {}
+        return;
+      }
+
       if (this.graceTimers.has(conn.peer)) {
         clearTimeout(this.graceTimers.get(conn.peer));
         this.graceTimers.delete(conn.peer);
@@ -450,12 +469,17 @@ class PeerNetworkService {
 
     conn.on('data', (data) => this.handleIncomingData(conn.peer, data));
     conn.on('close', () => {
-      logger.info('DISCOVERY', `Kapcsolat bontva: ${conn.peer}`);
-      this.cleanupPeerSession(conn.peer);
+      // ONLY trigger cleanup if this is the active connection for this peer
+      if (this.connections.get(conn.peer) === conn) {
+        logger.info('DISCOVERY', `Kapcsolat bontva: ${conn.peer}`);
+        this.cleanupPeerSession(conn.peer);
+      }
     });
     conn.on('error', (err) => {
-      logger.warn('PEER', `Kapcsolati hiba (${conn.peer}):`, err?.message || err);
-      this.cleanupPeerSession(conn.peer);
+      if (this.connections.get(conn.peer) === conn) {
+        logger.warn('PEER', `Kapcsolati hiba (${conn.peer}):`, err?.message || err);
+        this.cleanupPeerSession(conn.peer);
+      }
     });
   }
 
