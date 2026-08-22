@@ -260,7 +260,6 @@ class PeerNetworkService {
         }
         if (this.peer && !this.peer.destroyed) {
           try { this.peer.reconnect(); } catch (_) {}
-          setTimeout(() => { try { this.peer.reconnect(); } catch (_) {} }, 500);
         }
       });
     } catch (e) {
@@ -293,7 +292,7 @@ class PeerNetworkService {
           try { conn.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
         }
       });
-    }, 2000);
+    }, 2500);
   }
 
   setupLifecycleListeners() {
@@ -329,7 +328,7 @@ class PeerNetworkService {
   startProbing() {
     this.probeOtherSlots();
     if (this.probeTimer) clearInterval(this.probeTimer);
-    this.probeTimer = setInterval(() => this.probeOtherSlots(), 3000);
+    this.probeTimer = setInterval(() => this.probeOtherSlots(), 2000);
   }
 
   probeOtherSlots() {
@@ -345,9 +344,16 @@ class PeerNetworkService {
       // If we already have a healthy open connection, skip
       if (this.isConnectionHealthy(targetId)) continue;
 
-      // Small 3.5s cooldown only if this slot previously reported unavailable
+      // STRICT P2P RULE: Lower slot index always initiates connection to higher slot index.
+      // Slot 1 connects to 2..6, Slot 2 connects to 3..6, etc.
+      // Higher slots only listen, preventing mutual connection collisions completely!
+      if (this.mySlotIndex > i) {
+        continue;
+      }
+
+      // Small 2-second cooldown only if this slot previously reported unavailable
       const lastUnavailable = this.unavailableSlots.get(targetId);
-      if (lastUnavailable && now - lastUnavailable < 3500) {
+      if (lastUnavailable && now - lastUnavailable < 2000) {
         continue;
       }
 
