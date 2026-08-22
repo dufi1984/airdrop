@@ -345,20 +345,10 @@ class PeerNetworkService {
       // If we already have a healthy open connection, skip
       if (this.isConnectionHealthy(targetId)) continue;
 
-      // RULE: To prevent simultaneous duplicate connection collisions,
-      // lower slot index initiates connection to higher slot index.
-      // Higher slot indices only probe lower slots as a fallback after 12s.
-      if (this.mySlotIndex > i) {
-        const lastUnavailable = this.unavailableSlots.get(targetId);
-        if (!lastUnavailable || now - lastUnavailable < 12000) {
-          continue; // Let the lower slot index connect to us
-        }
-      } else {
-        // Lower slot: probe higher slot with 15s cooldown for empty slots
-        const lastUnavailable = this.unavailableSlots.get(targetId);
-        if (lastUnavailable && now - lastUnavailable < 15000) {
-          continue;
-        }
+      // Small 3.5s cooldown only if this slot previously reported unavailable
+      const lastUnavailable = this.unavailableSlots.get(targetId);
+      if (lastUnavailable && now - lastUnavailable < 3500) {
+        continue;
       }
 
       this.connectToSlot(targetId);
@@ -371,13 +361,9 @@ class PeerNetworkService {
     if (this.peer.disconnected) {
       try { this.peer.reconnect(); } catch (_) {}
     }
-    // Cleanly close any dead connection before creating a new one
-    const oldConn = this.connections.get(targetSlotId);
-    if (oldConn) {
-      try { oldConn.close(); } catch (_) {}
-      try { oldConn.peerConnection?.close(); } catch (_) {}
-      this.connections.delete(targetSlotId);
-    }
+    // If we already have an open healthy connection to this slot, NEVER reconnect or destroy it!
+    if (this.isConnectionHealthy(targetSlotId)) return;
+
     try {
       const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
