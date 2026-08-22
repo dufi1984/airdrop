@@ -159,6 +159,7 @@ class PeerNetworkService {
     this.receiverSessions = new Map(); // peerId → ReceiverSession
     this.graceTimers    = new Map(); // peerId → setTimeout
     this.unavailableSlots = new Map(); // peerId → timestamp (cooldown for empty slots)
+    this.iceDisconnectTimers = new Map(); // peerId → setTimeout (grace period for temporary mobile pauses)
 
     // Callbacks (set via init())
 
@@ -179,7 +180,7 @@ class PeerNetworkService {
     const conn = this.connections.get(peerId);
     if (!conn || !conn.open) return false;
     const iceState = conn.peerConnection?.iceConnectionState;
-    if (iceState && (iceState === 'disconnected' || iceState === 'failed' || iceState === 'closed')) {
+    if (iceState && (iceState === 'failed' || iceState === 'closed')) {
       return false;
     }
     return true;
@@ -358,6 +359,13 @@ class PeerNetworkService {
     if (this.peer.disconnected) {
       try { this.peer.reconnect(); } catch (_) {}
     }
+    // Cleanly close any dead connection before creating a new one
+    const oldConn = this.connections.get(targetSlotId);
+    if (oldConn) {
+      try { oldConn.close(); } catch (_) {}
+      try { oldConn.peerConnection?.close(); } catch (_) {}
+      this.connections.delete(targetSlotId);
+    }
     try {
       const conn = this.peer.connect(targetSlotId, {
         metadata: { deviceInfo: this.myDeviceName, deviceType: this.myDeviceName },
@@ -376,6 +384,10 @@ class PeerNetworkService {
         clearTimeout(this.graceTimers.get(conn.peer));
         this.graceTimers.delete(conn.peer);
       }
+      if (this.iceDisconnectTimers.has(conn.peer)) {
+        clearTimeout(this.iceDisconnectTimers.get(conn.peer));
+        this.iceDisconnectTimers.delete(conn.peer);
+      }
       this.unavailableSlots.delete(conn.peer);
 
       const peerName   = conn.metadata?.deviceInfo || conn.metadata?.deviceType || 'Eszköz';
@@ -387,14 +399,32 @@ class PeerNetworkService {
 
       logger.success('DISCOVERY', `Közvetlen P2P kapcsolat létrejött: ${peerName} (${conn.peer})`);
 
-      // Monitor WebRTC ICE state for diagnostics & auto-recovery
+      // Monitor WebRTC ICE state for diagnostics & temporary mobile pause recovery (iOS photo picker)
       if (conn.peerConnection) {
         try {
           conn.peerConnection.addEventListener('iceconnectionstatechange', () => {
             const state = conn.peerConnection?.iceConnectionState;
             if (state === 'connected' || state === 'completed') {
               logger.ice(`WebRTC ICE kapcsolat stabil: ${state} (${conn.peer})`);
-            } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+              if (this.iceDisconnectTimers.has(conn.peer)) {
+                clearTimeout(this.iceDisconnectTimers.get(conn.peer));
+                this.iceDisconnectTimers.delete(conn.peer);
+              }
+            } else if (state === 'disconnected') {
+              logger.warn('ICE', `WebRTC ICE kapcsolat szünetel: disconnected (${conn.peer})`);
+              // Temporary disconnect (e.g. mobile photo picker dialog). Wait 4.5s before aborting
+              if (!this.iceDisconnectTimers.has(conn.peer)) {
+                const timer = setTimeout(() => {
+                  this.iceDisconnectTimers.delete(conn.peer);
+                  const curState = conn.peerConnection?.iceConnectionState;
+                  if (curState === 'disconnected' || curState === 'failed' || curState === 'closed') {
+                    logger.warn('ICE', `WebRTC ICE kapcsolat végleg megszakadt (${conn.peer})`);
+                    this.cleanupPeerSession(conn.peer);
+                  }
+                }, 4500);
+                this.iceDisconnectTimers.set(conn.peer, timer);
+              }
+            } else if (state === 'failed' || state === 'closed') {
               logger.warn('ICE', `WebRTC ICE kapcsolat megszakadt: ${state} (${conn.peer})`);
               this.cleanupPeerSession(conn.peer);
             }
@@ -430,6 +460,11 @@ class PeerNetworkService {
   }
 
   cleanupPeerSession(peerId) {
+    if (this.iceDisconnectTimers.has(peerId)) {
+      clearTimeout(this.iceDisconnectTimers.get(peerId));
+      this.iceDisconnectTimers.delete(peerId);
+    }
+
     const hadActiveSender   = this.senderSessions.has(peerId);
     const hadActiveReceiver = this.receiverSessions.has(peerId);
 
@@ -441,6 +476,11 @@ class PeerNetworkService {
     const receiverSession = this.receiverSessions.get(peerId);
     if (receiverSession?.watchdogTimer) clearTimeout(receiverSession.watchdogTimer);
 
+    const conn = this.connections.get(peerId);
+    if (conn) {
+      try { conn.close(); } catch (_) {}
+      try { conn.peerConnection?.close(); } catch (_) {}
+    }
     this.connections.delete(peerId);
 
     // If an active transfer was interrupted, clear immediately and abort
