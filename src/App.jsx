@@ -6,6 +6,7 @@ import TransferProgress from './components/TransferProgress';
 import ReceivedFiles from './components/ReceivedFiles';
 import QrModal from './components/QrModal';
 import IncomingPromptModal from './components/IncomingPromptModal';
+import LogModal from './components/LogModal';
 
 import { peerNetworkService } from './services/peerNetworkService';
 import { platform } from './platform';
@@ -70,6 +71,7 @@ export default function App() {
   const [autoSavedFiles, setAutoSavedFiles] = useState(new Set()); // names of files already auto-downloaded
 
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
   const [incomingPrompt, setIncomingPrompt] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -310,6 +312,7 @@ export default function App() {
       <Header
         isConnected={isConnected}
         onOpenQr={() => setShowQrModal(true)}
+        onOpenLogs={() => setShowLogModal(true)}
         onForceReload={handleForceAppReload}
         isRefreshing={isRefreshing}
       />
@@ -382,6 +385,13 @@ export default function App() {
         <QrModal
           lang={lang}
           onClose={() => setShowQrModal(false)}
+        />
+      )}
+
+      {/* Diagnostic & Log Modal */}
+      {showLogModal && (
+        <LogModal
+          onClose={() => setShowLogModal(false)}
         />
       )}
 

@@ -259,18 +259,13 @@ class PeerNetworkService {
     this.heartbeatTimer = setInterval(() => {
       if (this.isDestroyed) return;
 
-      // 1. Proactively keep PeerJS WebSocket alive against cellular network idle timeouts
+      // 1. Proactively ensure PeerJS connection to server is alive
       if (this.peer && !this.peer.destroyed) {
         if (this.peer.disconnected) {
           try { this.peer.reconnect(); } catch (_) {}
         } else {
-          try {
-            // Keep WebSocket frame alive for cellular carriers
-            const ws = this.peer.socket?._socket;
-            if (ws && ws.readyState === 1) { // 1 = WebSocket.OPEN
-              ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
-            }
-          } catch (_) {}
+          // Connected and open – keep status badge green
+          if (this.onStatusChange) this.onStatusChange(true);
         }
       }
 
@@ -729,7 +724,7 @@ class PeerNetworkService {
 
     // If socket not ready yet, connect and wait until open
     this.connectToSlot(targetPeerId);
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 40; i++) {
       const curSession = this.senderSessions.get(targetPeerId);
       if (!curSession || curSession.abortController.aborted) return; // Cancelled by user!
       await new Promise(r => setTimeout(r, 100));
@@ -740,6 +735,14 @@ class PeerNetworkService {
           return; // Sent once, exit loop immediately!
         } catch (_) {}
       }
+    }
+
+    // If connection could not open after 4s, clean up and notify sender UI
+    const failedSession = this.senderSessions.get(targetPeerId);
+    if (failedSession && !failedSession.abortController.aborted) {
+      logger.warn('TRANSFER', `Nem sikerült kapcsolatot létesíteni (${targetPeerId})`);
+      this.senderSessions.delete(targetPeerId);
+      if (this.onTransferAborted) this.onTransferAborted(targetPeerId);
     }
   }
 

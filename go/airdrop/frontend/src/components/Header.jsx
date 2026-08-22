@@ -12,13 +12,15 @@ export default function Header({ isConnected, onOpenQr, onForceReload, onOpenLog
         {/* Right Side Action Controls: Ant Design Status Badge -> QR -> Refresh */}
         <div className="flex items-center gap-2.5">
           
-          {/* Ant Design Status Badge */}
-          <div
-            className={`px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1.5 transition-all select-none ${
+          {/* Ant Design Status Badge (Click to open Diagnostic Logs) */}
+          <button
+            onClick={onOpenLogs}
+            className={`px-2 py-0.5 rounded text-xs font-medium flex items-center gap-1.5 transition-all select-none cursor-pointer hover:brightness-110 active:scale-95 border ${
               isConnected
-                ? 'bg-[#132a13] border border-[#235323] text-[#52c41a]'
-                : 'bg-[#2b2111] border border-[#594214] text-[#faad14]'
+                ? 'bg-[#132a13] border-[#235323] text-[#52c41a]'
+                : 'bg-[#2b2111] border-[#594214] text-[#faad14]'
             }`}
+            title="Kattints a Rendszernapló & Diagnosztika megnyitásához"
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -28,7 +30,7 @@ export default function Header({ isConnected, onOpenQr, onForceReload, onOpenLog
             <span className="hidden xs:inline text-[11px] font-medium">
               {isConnected ? 'Online' : 'Csatlakozás...'}
             </span>
-          </div>
+          </button>
 
           {/* QR Code Float Button (matching FloatButton circular style in screenshot) */}
           <button
